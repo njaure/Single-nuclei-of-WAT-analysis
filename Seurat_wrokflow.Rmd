@@ -1,0 +1,109 @@
+---
+title: "Seurat basic workflow for single nuclei analysis "
+output: github_document
+---
+
+## Summary
+
+Workflow to analyze single nuclei data starting with the following input files :
+- barcode.tsv
+- features.tsv
+- matrix.mtx
+
+Those files are obtained after the cellranger pipeline or Starsolo. 
+
+## Pipeline
+
+### Packages
+
+```{r setup, cache.comments=TRUE}
+library(scater)
+library(Seurat)
+
+```
+
+### Uploading data
+** to fill in **
+```{r}
+path="/Users/njaure/Documents/Main_thesis_project/10Xdata_second_try/starsolo_genefull"
+project_name="AL_0919"
+min_cells=3
+min_feat=70
+```
+  
+
+```{r}
+# Initialize the Seurat object with the raw (non-normalized data).
+raw.data <- Read10X(data.dir = path)
+
+so_data <- CreateSeuratObject(counts = raw.data, project = project_name, min.cells = min_cells, min.features = min_feat)
+so_data
+```
+
+- min cell and min features to adjust based on next plot
+
+#### Count of features per cells
+
+```{r}
+VlnPlot(so_data, features = c("nFeature_RNA", "nCount_RNA"), ncol = 2)
+
+```
+
+#### Normalization and most variable features
+
+** to fill in **
+```{r}
+n_feat=2000
+```
+  
+
+```{r}
+so_data <- NormalizeData(so_data)
+so_data<- FindVariableFeatures(so_data, selection.method = "vst", nfeatures = n_feat)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(so_data), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(so_data)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot2
+```
+
+
+#### PCA 
+
+```{r}
+all.genes <- rownames(so_data)
+so_data <- ScaleData(so_data, features = all.genes)
+
+#PCA plot
+so_data <- RunPCA(so_data, features = VariableFeatures(object = so_data))
+DimPlot(so_data, reduction = "pca")
+```
+
+##### select number of principal components to keep maximum of variability
+
+```{r}
+ElbowPlot(so_data)
+```
+
+#### Compute clustering
+** to fill in **
+```{r}
+n_dims=1:10
+resol=0.8
+```
+  
+```{r}
+so_data <- FindNeighbors(so_data, dims = n_dims)
+so_data <- FindClusters(so_data, resolution = resol)
+```
+
+
+#### Run UMAP
+
+```{r,fig.width = 5, fig.asp = 0.8}
+AL <- RunUMAP(AL, dims = 1:8)
+DimPlot(AL, reduction = "umap")
+
+```
