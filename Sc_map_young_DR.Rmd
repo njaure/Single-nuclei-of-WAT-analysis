@@ -8,7 +8,7 @@ output: html_document
 
 
 
-```{r}
+```{r,include=FALSE, message=FALSE}
 library(Seurat)
 library(ggplot2)
 library(cowplot)
@@ -19,9 +19,9 @@ library(ggsci)
 ```
 
 ```{r}
-Cell_types= c("Mature adipocyte", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Pre-adipocyte (Pdea5)", "Endothelial cells", "Muscle cells", "?")
+Cell_types= c("Mature adipocyte","Mature adipocyte 2", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Pre-adipocyte (Pdea5)", "Endothelial cells", "Muscle cells", "?", "High Mito", "High Dao")
 mypal=pal_locuszoom("default",alpha = 0.9)(7)
-mypal=c(mypal,"#2E3532")
+mypal=c(mypal,"#2E3532","#1b5fb3","#7a2d42","#a67012")
 Colours=data.frame(Cell_types,mypal)
 
 ```
@@ -37,7 +37,7 @@ dry_38 <- CreateSeuratObject(counts = dry_38.data, project = "DR", min.cells = 2
 dry_38
 ```
 
-#bad quality
+* bad quality
 
 ### DR young 2 (70)
 
@@ -55,8 +55,8 @@ plot2 <- FeatureScatter(dry2_70, feature1 = "nCount_RNA", feature2 = "nFeature_R
 plot_grid( plot_vln,plot2)
 ```
 
-```{r}
-dry2_70 <- subset(dry2_70, subset = nFeature_RNA > 50 & nFeature_RNA < 200 & nCount_RNA < 1000 & percent.mt < 1)
+```{r, message=FALSE, warning=FALSE}
+dry2_70 <- subset(dry2_70, subset = nFeature_RNA > 50 & nFeature_RNA < 200 & nCount_RNA < 1000 & percent.mt < 2)
 
 # store mitochondrial percentage in object meta data
 dry2_70 <- PercentageFeatureSet(dry2_70, pattern = "^mt-", col.name = "percent.mt")
@@ -74,8 +74,9 @@ dry2_70 <- FindClusters(dry2_70, verbose = FALSE)
 DimPlot(dry2_70, label = TRUE) + NoLegend()
 ```
 
+* Cluster 3 is made of cells with percentage of ribosomal proteins. Cells that are dead, should be removed from the dataset ? 
 
-
+### Repartition of counts and feature per cluster 
 
 ```{r}
 FeaturePlot(dry2_70,features = c("nFeature_RNA", "nCount_RNA"))
@@ -83,17 +84,40 @@ FeaturePlot(dry2_70,features = c("nFeature_RNA", "nCount_RNA"))
 
 
 
+# Get markers per clusters
 
+```{r fig.height = 12, fig.width = 12}
 
-```{r}
-all.markers=FindAllMarkers(dry2_70, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
 all.markers_ydr=FindAllMarkers(dry2_70, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25,min.cells.feature = 50)
 
 top_features_ydr=vector()
 temp=vector()
 for ( i in 0:length(unique(all.markers_ydr$cluster))){
   if (nrow(all.markers_ydr[all.markers_ydr$cluster==i,])>10 ){
-     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:2]
+     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:3]
+      top_features_ydr<-c(top_features_ydr,temp)
+  }else {
+    temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:3]
+      top_features_ydr<-c(top_features_ydr,temp)
+    
+  }
+
+
+}
+
+
+VlnPlot(dry2_70, features = top_features_ydr, 
+    pt.size = 0.2, ncol = 4, stack=TRUE)
+
+```
+
+```{r fig.height = 7, fig.width = 9}
+
+top_features_ydr=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_ydr$cluster))){
+  if (nrow(all.markers_ydr[all.markers_ydr$cluster==i,])>10 ){
+     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:6]
       top_features_ydr<-c(top_features_ydr,temp)
   }else {
     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:nrow(all.markers_ydr[all.markers_ydr$cluster==i,])]
@@ -105,12 +129,6 @@ for ( i in 0:length(unique(all.markers_ydr$cluster))){
 }
 
 
-VlnPlot(dry2_70, features = top_features_ydr, 
-    pt.size = 0.2, ncol = 3)
-
-```
-
-```{r}
 
 DoHeatmap(dry2_70,group.by = "ident",features =top_features_ydr  )+ scale_fill_viridis()
 
@@ -118,7 +136,7 @@ DoHeatmap(dry2_70,group.by = "ident",features =top_features_ydr  )+ scale_fill_v
 
 
 ```{r}
-new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte (Tshz2)", "Myeloid precursors","Pre-adipocyte (Pdea5)")
+new.cluster.ids <- c("Mature adipocyte","Mature adipocyte 2","Pre-adipocyte (Tshz2)","High mito","High Dao" ,"Pre-adipocyte (Pdea5)","?")
 
 names(new.cluster.ids) <- levels(dry2_70)
 dry2_70 <- RenameIdents(dry2_70, new.cluster.ids)
