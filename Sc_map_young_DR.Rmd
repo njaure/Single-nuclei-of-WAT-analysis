@@ -1,0 +1,132 @@
+---
+title: "Comp_data_10x Young DR samples analysis on Seurat"
+author: "Nathalie"
+date: "2/8/2021"
+output: html_document
+---
+
+
+
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(ggpubr)
+library(viridis)
+library(ggsci)
+```
+
+```{r}
+Cell_types= c("Mature adipocyte", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Pre-adipocyte (Pdea5)", "Endothelial cells", "Muscle cells", "?")
+mypal=pal_locuszoom("default",alpha = 0.9)(7)
+mypal=c(mypal,"#2E3532")
+Colours=data.frame(Cell_types,mypal)
+
+```
+
+
+## Young Samples
+
+### DR young (38)
+
+```{r}
+dry_38.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/38_dry/Solo.out/GeneFull/raw/")
+dry_38 <- CreateSeuratObject(counts = dry_38.data, project = "DR", min.cells = 20, min.features = 80)
+dry_38
+```
+
+#bad quality
+
+### DR young 2 (70)
+
+```{r}
+dry2_70.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/70_dry2/Solo.out/GeneFull/raw/")
+dry2_70 <- CreateSeuratObject(counts = dry2_70.data, project = "DR_70", min.cells = 20, min.features = 80)
+dry2_70
+```
+
+
+```{r}
+dry2_70[["percent.mt"]] <- PercentageFeatureSet(dry2_70, pattern = "^mt-")
+plot_vln<-VlnPlot(dry2_70, features = c("nFeature_RNA", "nCount_RNA","percent.mt"), ncol = 3)
+plot2 <- FeatureScatter(dry2_70, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r}
+dry2_70 <- subset(dry2_70, subset = nFeature_RNA > 50 & nFeature_RNA < 200 & nCount_RNA < 1000 & percent.mt < 1)
+
+# store mitochondrial percentage in object meta data
+dry2_70 <- PercentageFeatureSet(dry2_70, pattern = "^mt-", col.name = "percent.mt")
+
+# run sctransform
+dry2_70 <- SCTransform(dry2_70, vars.to.regress = "percent.mt", verbose = FALSE)
+
+
+# These are now standard steps in the Seurat workflow for visualization and clustering
+dry2_70 <- RunPCA(dry2_70, verbose = FALSE)
+dry2_70 <- RunUMAP(dry2_70, dims = 1:30, verbose = FALSE)
+
+dry2_70 <- FindNeighbors(dry2_70, dims = 1:30, verbose = FALSE)
+dry2_70 <- FindClusters(dry2_70, verbose = FALSE)
+DimPlot(dry2_70, label = TRUE) + NoLegend()
+```
+
+
+
+
+```{r}
+FeaturePlot(dry2_70,features = c("nFeature_RNA", "nCount_RNA"))
+```
+
+
+
+
+
+```{r}
+all.markers=FindAllMarkers(dry2_70, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
+all.markers_ydr=FindAllMarkers(dry2_70, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25,min.cells.feature = 50)
+
+top_features_ydr=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_ydr$cluster))){
+  if (nrow(all.markers_ydr[all.markers_ydr$cluster==i,])>10 ){
+     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:2]
+      top_features_ydr<-c(top_features_ydr,temp)
+  }else {
+    temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:nrow(all.markers_ydr[all.markers_ydr$cluster==i,])]
+      top_features_ydr<-c(top_features_ydr,temp)
+    
+  }
+
+
+}
+
+
+VlnPlot(dry2_70, features = top_features_ydr, 
+    pt.size = 0.2, ncol = 3)
+
+```
+
+```{r}
+
+DoHeatmap(dry2_70,group.by = "ident",features =top_features_ydr  )+ scale_fill_viridis()
+
+```
+
+
+```{r}
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte (Tshz2)", "Myeloid precursors","Pre-adipocyte (Pdea5)")
+
+names(new.cluster.ids) <- levels(dry2_70)
+dry2_70 <- RenameIdents(dry2_70, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(dry2_70),Colours$Cell_types),2])
+p_dry2_70<-DimPlot(dry2_70, reduction = "umap", label = TRUE, pt.size = 0.5,cols=pal ) + NoLegend()
+p_dry2_70
+
+```
+
+
