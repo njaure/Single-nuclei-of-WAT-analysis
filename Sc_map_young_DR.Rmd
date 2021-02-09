@@ -261,4 +261,19 @@ DoHeatmap(dry2_70_filtered,group.by = "ident",features =top_features_ydr  )+ sca
 ```
 
 
+```{r}
+new.cluster.ids <- c("Mature adipocyte","Mature adipocyte 2","Myeloid precursors","Stem cells","Endothelial cells")
+
+names(new.cluster.ids) <- levels(dry2_70_filtered)
+dry2_70_filtered <- RenameIdents(dry2_70_filtered, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(dry2_70_filtered),Colours$Cell_types),2])
+p_dry2_70_filtered<-DimPlot(dry2_70_filtered, reduction = "umap", label = TRUE, pt.size = 0.5,cols=pal ) + NoLegend()
+p_dry2_70_filtered
+
+```
+
+
+
+
 

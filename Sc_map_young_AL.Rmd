@@ -1,0 +1,328 @@
+---
+title: "Comp_data_10x Young AL samples analysis on Seurat"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(ggpubr)
+library(viridis)
+library(ggsci)
+```
+
+```{r}
+Cell_types= c("Mature adipocyte","Mature adipocyte 2", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Pre-adipocyte (Pdea5)", "Endothelial cells", "Muscle cells", "?", "High Mito", "High Dao")
+mypal=pal_locuszoom("default",alpha = 0.9)(7)
+mypal=c(mypal,"#2E3532","#1b5fb3","#7a2d42","#a67012")
+Colours=data.frame(Cell_types,mypal)
+
+```
+
+## Young Samples
+
+### AL young (37)
+
+```{r}
+aly_37.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/37_aly/Solo.out/GeneFull/raw/")
+
+aly_37 <- CreateSeuratObject(counts = aly_37.data, project = "al_young", min.cells = 20, min.features = 80)
+aly_37
+```
+
+```{r}
+aly_37[["percent.mt"]] <- PercentageFeatureSet(aly_37, pattern = "^mt-")
+plot_vln<-VlnPlot(aly_37, features = c("nFeature_RNA", "nCount_RNA","percent.mt"), ncol = 3)
+plot2 <- FeatureScatter(aly_37, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r}
+aly_37 <- subset(aly_37, subset = nFeature_RNA > 50 & nFeature_RNA < 200 & nCount_RNA < 1000 & percent.mt < 2)
+aly_37 <- NormalizeData(aly_37)
+aly_37 <- FindVariableFeatures(aly_37, selection.method = "vst", nfeatures = 500)
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(aly_37), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(aly_37)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot_grid(plot2)
+```
+
+
+
+```{r}
+all.genes <- rownames(aly_37)
+aly_37 <- ScaleData(aly_37, features = all.genes)
+aly_37 <- RunPCA(aly_37, features = VariableFeatures(object = aly_37))
+DimPlot(aly_37, reduction = "pca")
+ElbowPlot(aly_37)
+
+```
+
+```{r}
+aly_37 <- FindNeighbors(aly_37, dims = 1:15)
+aly_37<- FindClusters(aly_37, resolution = 0.5)
+```
+
+- Run UMAP
+
+```{r, fig.asp = 0.5}
+aly_37 <- RunUMAP(aly_37, dims = 1:35)
+DimPlot(aly_37, reduction = "umap")
+
+```
+
+
+```{r}
+FeaturePlot(aly_37,features = c("nFeature_RNA", "nCount_RNA"))
+```
+
+```{r}
+all.markers=FindAllMarkers(aly_37, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
+
+DoHeatmap(aly_37,group.by = "ident",features =rownames(all.markers)  )+ scale_fill_viridis()
+
+```
+
+```{r}
+# store mitochondrial percentage in object meta data
+aly_37 <- PercentageFeatureSet(aly_37, pattern = "^mt-", col.name = "percent.mt")
+
+# run sctransform
+aly_37 <- SCTransform(aly_37, vars.to.regress = "percent.mt", verbose = FALSE)
+
+
+# These are now standard steps in the Seurat workflow for visualization and clustering
+aly_37 <- RunPCA(aly_37, verbose = FALSE)
+aly_37 <- RunUMAP(aly_37, dims = 1:30, verbose = FALSE)
+
+aly_37 <- FindNeighbors(aly_37, dims = 1:30, verbose = FALSE)
+aly_37 <- FindClusters(aly_37, verbose = FALSE)
+DimPlot(aly_37, label = TRUE) + NoLegend()
+```
+```{r}
+FeaturePlot(aly_37,features = c("nFeature_RNA", "nCount_RNA"))
+```
+
+
+
+```{r}
+all.markers=FindAllMarkers(aly_37, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
+all.markers=FindAllMarkers(aly_37, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25,min.cells.feature = 50)
+
+DoHeatmap(aly_37,group.by = "ident",features =rownames(all.markers)  )+ scale_fill_viridis()
+
+```
+
+
+```{r}
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte (Tshz2)", "Myeloid precursors","Pre-adipocyte (Pdea5)")
+
+names(new.cluster.ids) <- levels(aly_37)
+aly_37 <- RenameIdents(aly_37, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(aly_37),Colours$Cell_types),2])
+p_aly_37<-DimPlot(aly_37, reduction = "umap", label = TRUE, pt.size = 0.5,cols=pal ) + NoLegend()
+p_aly_37
+
+```
+
+
+
+
+***
+
+
+### AL young (69)
+
+
+```{r}
+aly2_69.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/69_aly2/Solo.out/GeneFull/raw/")
+
+aly2_69 <- CreateSeuratObject(counts = aly2_69.data, project = "al_young_2", min.cells = 20, min.features = 80)
+aly2_69
+```
+
+```{r, fig.asp=0.5}
+aly2_69[["percent.mt"]] <- PercentageFeatureSet(aly2_69, pattern = "^mt-")
+plot_vln<-VlnPlot(aly2_69, features = c("nFeature_RNA", "nCount_RNA","percent.mt"), ncol = 3)
+
+plot2 <- FeatureScatter(aly2_69, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+
+
+
+
+
+```{r}
+
+aly2_69 <- subset(aly2_69, subset = nFeature_RNA > 30 & nFeature_RNA < 250 & nCount_RNA < 1000 & percent.mt < 5)
+# store mitochondrial percentage in object meta data
+aly2_69 <- PercentageFeatureSet(aly2_69, pattern = "^mt-", col.name = "percent.mt")
+
+# run sctransform
+aly2_69 <- SCTransform(aly2_69, vars.to.regress = "percent.mt", verbose = FALSE)
+
+
+# These are now standard steps in the Seurat workflow for visualization and clustering
+aly2_69 <- RunPCA(aly2_69, verbose = FALSE)
+aly2_69 <- RunUMAP(aly2_69, dims = 1:30, verbose = FALSE)
+
+aly2_69 <- FindNeighbors(aly2_69, dims = 1:30, verbose = FALSE)
+aly2_69 <- FindClusters(aly2_69, verbose = FALSE)
+DimPlot(aly2_69, label = TRUE) + NoLegend()
+```
+
+```{r}
+FeaturePlot(aly2_69,features = c("nFeature_RNA", "nCount_RNA"))
+```
+
+
+
+```{r}
+all.markers=FindAllMarkers(aly2_69, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
+all.markers=FindAllMarkers(aly2_69, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25,min.cells.feature = 20)
+
+DoHeatmap(aly2_69,group.by = "ident",features =rownames(all.markers)  )+ scale_fill_viridis()
+
+```
+
+```{r}
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte (Tshz2)","Myeloid precursors")
+
+names(new.cluster.ids) <- levels(aly2_69)
+aly2_69 <- RenameIdents(aly2_69, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(aly2_69),Colours$Cell_types),2])
+p_aly2_69<-DimPlot(aly2_69, reduction = "umap", label = TRUE, pt.size = 0.5,cols=pal ) + NoLegend()
+p_aly2_69
+
+```
+
+
+
+##### Merging
+
+```{r}
+young_al_data<-list(aly_37,aly2_69)
+
+for( i in 1:2){
+young_al_data[[i]] <- NormalizeData(young_al_data[[i]])
+young_al_data[[i]] <- FindVariableFeatures(young_al_data[[i]], selection.method = "vst", nfeatures = 2000)}
+```
+
+
+```{r}
+young_al_anchors <- FindIntegrationAnchors(object.list = young_al_data, dims = 1:30)
+young_al_combined <- IntegrateData(anchorset = young_al_anchors, dims = 1:30)
+```
+
+```{r, fig.asp=0.3}
+DefaultAssay(young_al_combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+young_al_combined <- ScaleData(young_al_combined, verbose = FALSE)
+young_al_combined <- RunPCA(young_al_combined, npcs = 30, verbose = FALSE)
+# t-SNE and Clustering
+young_al_combined <- RunUMAP(young_al_combined, reduction = "pca", dims = 1:20)
+young_al_combined <- FindNeighbors(young_al_combined, reduction = "pca", dims = 1:20)
+young_al_combined <- FindClusters(young_al_combined, resolution = 0.5)
+# Visualization
+
+pal=as.vector(Colours[match(levels(young_al_combined),Colours$Cell_types),2])
+p1 <- DimPlot(young_al_combined, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(young_al_combined, reduction = "umap",cols=pal)
+p3 <- DimPlot(young_al_combined, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r}
+all.markers=FindAllMarkers(aly2_69, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
+all.markers=FindAllMarkers(young_al_combined, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25,min.cells.feature = 20)
+
+DoHeatmap(young_al_combined,group.by = "ident",features =rownames(all.markers)  )+ scale_fill_viridis()
+
+```
+
+
+
+```{r}
+young_al_features <- SelectIntegrationFeatures(object.list = young_al_data, nfeatures = 1000)
+young_al_list <- PrepSCTIntegration(object.list = young_al_data, anchor.features = young_al_features, 
+    verbose = FALSE)
+```
+
+```{r}
+young_al_anchors <- FindIntegrationAnchors(object.list = young_al_list, normalization.method = "SCT", 
+    anchor.features = young_al_features)
+young_al_combined.sct <- IntegrateData(anchorset = young_al_anchors, normalization.method = "SCT")
+
+young_al_combined.sct <- RunPCA(young_al_combined.sct, verbose = FALSE)
+young_al_combined.sct <- RunUMAP(young_al_combined.sct, reduction = "pca", dims = 1:30)
+```
+```{r}
+pal=as.vector(Colours[match(levels(young_al_combined.sct),Colours$Cell_types),2])
+p1 <- DimPlot(young_al_combined.sct, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(young_al_combined.sct, reduction = "umap",cols=pal)
+p3 <- DimPlot(young_al_combined.sct, reduction = "umap")
+plot_grid( p1,p2)
+```
+
+```{r}
+young_al_combined.sct <- FindNeighbors(young_al_combined.sct, reduction = "pca", dims = 1:30)
+young_al_combined.sct <- FindClusters(young_al_combined.sct, resolution = 0.3)
+```
+
+```{r}
+p2 <- DimPlot(young_al_combined.sct, reduction = "umap",cols=pal)
+p3 <- DimPlot(young_al_combined.sct, reduction = "umap")
+plot_grid( p2,p3)
+```
+
+```{r}
+all.markers=FindAllMarkers(aly2_69, logfc.threshold = 0.25,min.cells.feature = 10,test.use = "roc",only.pos = TRUE)
+all.markers_yalc=FindAllMarkers(young_al_combined.sct, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25,min.cells.feature = 20)
+
+
+VlnPlot(young_al_combined.sct, features = top_features_yalc, 
+    pt.size = 0.2, ncol = 3)
+
+
+```
+
+
+```{r}
+FeaturePlot(young_al_combined.sct, features = top_features_yalc, pt.size = 0.2, 
+    ncol = 3)
+```
+
+```{r}
+top_features_yalc=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_yalc$cluster))){
+  if (nrow(all.markers_yalc[all.markers_yalc$cluster==i,])>10 ){
+     temp= all.markers_yalc[all.markers_yalc$cluster==i,"gene"][1:6]
+      top_features_yalc<-c(top_features_yalc,temp)
+  }else {
+    temp= all.markers_yalc[all.markers_yalc$cluster==i,"gene"][1:nrow(all.markers_yalc[all.markers_yalc$cluster==i,])]
+      top_features_yalc<-c(top_features_yalc,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(young_al_combined.sct,group.by = "ident",features =top_features_yalc)+ scale_fill_viridis()
+```
+
