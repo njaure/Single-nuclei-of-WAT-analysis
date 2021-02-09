@@ -148,3 +148,117 @@ p_dry2_70
 ```
 
 
+#### Remove dead nuclei
+
+```{r}
+#Get cell's barcode from the cluster High mito
+High_mito=WhichCells(dry2_70, ident = "High mito")
+
+length(colnames(dry2_70)) ## 886
+
+dry2_70_filtered <- CreateSeuratObject(counts = dry2_70.data, project = "DR_70", min.cells = 20, min.features = 80)
+
+dry2_70_filtered <- dry2_70_filtered[,!colnames(dry2_70_filtered) %in% High_mito]
+
+length(colnames(dry2_70_filtered)) ## 809
+
+
+```
+
+
+```{r}
+dry2_70_filtered[["percent.mt"]] <- PercentageFeatureSet(dry2_70_filtered, pattern = "^mt-")
+plot_vln<-VlnPlot(dry2_70_filtered, features = c("nFeature_RNA", "nCount_RNA","percent.mt"), ncol = 3)
+plot2 <- FeatureScatter(dry2_70_filtered, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+dry2_70_filtered <- subset(dry2_70_filtered, subset = nFeature_RNA > 50 & nFeature_RNA < 250 & nCount_RNA < 1000 & percent.mt < 1)
+
+# store mitochondrial percentage in object meta data
+dry2_70_filtered <- PercentageFeatureSet(dry2_70_filtered, pattern = "^mt-", col.name = "percent.mt")
+
+# run sctransform
+dry2_70_filtered <- SCTransform(dry2_70_filtered, vars.to.regress = "percent.mt", verbose = FALSE)
+
+
+# These are now standard steps in the Seurat workflow for visualization and clustering
+dry2_70_filtered <- RunPCA(dry2_70_filtered, verbose = FALSE)
+dry2_70_filtered <- RunUMAP(dry2_70_filtered, dims = 1:30, verbose = FALSE)
+
+dry2_70_filtered <- FindNeighbors(dry2_70_filtered, dims = 1:30, verbose = FALSE)
+dry2_70_filtered <- FindClusters(dry2_70_filtered, verbose = FALSE,resolution = 0.8)
+DimPlot(dry2_70_filtered, label = TRUE) + NoLegend()
+```
+### Repartition of counts and feature per cluster 
+
+```{r}
+FeaturePlot(dry2_70_filtered,features = c("nFeature_RNA", "nCount_RNA"))
+```
+
+```{r}
+FeaturePlot(dry2_70_filtered,features = c("Lipe", "Slc1a3", "Atp1a2"))
+```
+
+```{r}
+FeaturePlot(dry2_70_filtered,features = c("Dao", "Slc7a14", "Fgfr2"))
+```
+
+
+```{r fig.height = 12, fig.width = 12}
+
+all.markers_ydr=FindAllMarkers(dry2_70_filtered, only.pos = TRUE, logfc.threshold = 0.1,min.cells.feature = 30)
+
+top_features_ydr=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_ydr$cluster))){
+  if (nrow(all.markers_ydr[all.markers_ydr$cluster==i,])>10 ){
+     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:2]
+      top_features_ydr<-c(top_features_ydr,temp)
+  }else {
+    temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:2]
+      top_features_ydr<-c(top_features_ydr,temp)
+    
+  }
+
+
+}
+
+
+VlnPlot(dry2_70_filtered, features = top_features_ydr, 
+    pt.size = 0.2, ncol = 4, stack=TRUE)
+
+```
+
+```{r fig.height = 6, fig.width = 6}
+FeaturePlot(dry2_70_filtered, features = top_features_ydr, pt.size = 0.2, 
+    ncol = 3)
+```
+
+
+```{r fig.height = 7, fig.width = 9}
+
+top_features_ydr=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_ydr$cluster))){
+  if (nrow(all.markers_ydr[all.markers_ydr$cluster==i,])>10 ){
+     temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:6]
+      top_features_ydr<-c(top_features_ydr,temp)
+  }else {
+    temp= all.markers_ydr[all.markers_ydr$cluster==i,"gene"][1:nrow(all.markers_ydr[all.markers_ydr$cluster==i,])]
+      top_features_ydr<-c(top_features_ydr,temp)
+    
+  }
+
+
+}
+
+
+
+DoHeatmap(dry2_70_filtered,group.by = "ident",features =top_features_ydr  )+ scale_fill_viridis()
+
+```
+
+
+
