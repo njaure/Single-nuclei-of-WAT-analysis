@@ -386,3 +386,43 @@ plot_grid(plot_markers[[1]], plot_markers[[2]], plot_markers[[3]], plot_markers[
 ```{r}
 DotPlot(young_combined.sct,features =unique(top_young_combined.sct.markers),split.by = "diet",cols = c("blue", "red"))
 ```
+
+
+```{r}
+new.cluster.ids <- c("Mature adipocyte", "Myeloid cells", 
+    "Pre-adipocyte", "Stem cell", "?", "Mature adipocyte 2", "Endothelial cell", "Stromal cell")
+
+names(new.cluster.ids) <- levels(young_combined.sct)
+young_combined.sct <- RenameIdents(young_combined.sct, new.cluster.ids)
+
+```
+
+```{r}
+DotPlot(young_combined.sct,features =unique(top_young_combined.sct.markers),split.by = "diet",cols = c("blue", "red"))
+```
+```{r}
+library(cowplot)
+theme_set(theme_cowplot())
+mat_adip <- subset(young_combined.sct, idents = "Mature adipocyte")
+Idents(mat_adip) <- "diet"
+avg.mat_adip <- as.data.frame(log1p(AverageExpression(mat_adip, verbose = FALSE)$RNA))
+avg.mat_adip$gene <- rownames(avg.mat_adip)
+
+
+
+genes.to.label = c("Cidec")
+p1 <- ggplot(avg.mat_adip, aes(AL, DR)) + geom_point() + ggtitle("Mat adipo")
+p1 <- LabelPoints(plot = p1, points = genes.to.label, repel = TRUE)
+p2 <- ggplot(avg.cd14.mono, aes(CTRL, STIM)) + geom_point() + ggtitle("CD14 Monocytes")
+p2 <- LabelPoints(plot = p2, points = genes.to.label, repel = TRUE)
+p1 
+```
+
+```{r}
+young_combined.sct$celltype.diet<- paste(Idents(young_combined.sct), young_combined.sct$diet, sep = "_")
+young_combined.sct$celltype <- Idents(young_combined.sct)
+Idents(young_combined.sct) <- "celltype.diet"
+dr.response <- FindMarkers(young_combined.sct, ident.1 = "Mature adipocyte_DR", ident.2 = "Mature adipocyte_AL", verbose = FALSE)
+head(dr.response, n = 15)
+```
+
