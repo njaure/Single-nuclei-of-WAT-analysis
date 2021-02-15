@@ -422,7 +422,42 @@ p1
 young_combined.sct$celltype.diet<- paste(Idents(young_combined.sct), young_combined.sct$diet, sep = "_")
 young_combined.sct$celltype <- Idents(young_combined.sct)
 Idents(young_combined.sct) <- "celltype.diet"
-dr.response <- FindMarkers(young_combined.sct, ident.1 = "Mature adipocyte_DR", ident.2 = "Mature adipocyte_AL", verbose = FALSE)
+```
+
+```{r}
+dr.response <- FindMarkers(young_combined.sct, ident.1 = "Mature adipocyte_DR", ident.2 = "Mature adipocyte_AL", verbose = FALSE,min.diff.pct = 0.25,logfc.threshold = log(1))
 head(dr.response, n = 15)
 ```
+
+```{r}
+clusters.young_combined.sct= sort(unique(young_combined.sct$celltype.diet))
+add=1:7
+dr.response<-list()
+plot_response<-list()
+
+for (i in 1:(length(clusters.young_combined.sct)/2) ){
+  if ( i<2){ a=i
+    dr.response[[i]] <- FindMarkers(young_combined.sct, ident.1 = clusters.young_combined.sct[a], ident.2 = clusters.young_combined.sct[a+1], verbose = FALSE,min.diff.pct = 0.25,logfc.threshold = log(1),min.pct = 0.25)
+ 
+  genes.to.label = rownames(dr.response[[i]])[1:10]
+  p1<-ggplot(avg.mat_adip, aes(AL, DR)) + geom_point() + ggtitle(paste(clusters.young_combined.sct[a], "vs",clusters.young_combined.sct[a+1] ))
+  plot_response[[i]]<-LabelPoints(plot = p1, points = genes.to.label, repel = TRUE) }
+  else {
+     a=i+add[i-1]
+    dr.response[[i]] <- FindMarkers(young_combined.sct, ident.1 = clusters.young_combined.sct[a], ident.2 = clusters.young_combined.sct[a+1], verbose = FALSE,min.diff.pct = 0.25,logfc.threshold = log(1),min.pct = 0.25)
+ 
+  genes.to.label = rownames(dr.response[[i]])[1:10]
+  p1<-ggplot(avg.mat_adip, aes(AL, DR)) + geom_point() + ggtitle(paste(clusters.young_combined.sct[a], "vs",clusters.young_combined.sct[a+1] ))
+  plot_response[[i]]<-LabelPoints(plot = p1, points = genes.to.label, repel = TRUE) }
+  
+  
+}
+
+
+```
+
+```{r fig.asp=0.7}
+plot_grid(plot_response[[1]], plot_response[[2]], plot_response[[3]], plot_response[[4]], plot_response[[5]], plot_response[[6]], plot_response[[7]],plot_response[[8]])
+```
+
 
