@@ -1,0 +1,385 @@
+---
+title: "Old (diet) pipeline"
+author: "Nathalie"
+date: "2/12/2021"
+output: html_document
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(ggpubr)
+library(viridis)
+library(ggsci)
+```
+
+
+
+```{r}
+Cell_types= c("Mature adipocyte","Mature adipocyte 2", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Endothelial cells", "Muscle cells", "?", "High Mito")
+mypal=pal_locuszoom("default",alpha = 0.9)(7)
+mypal=c(mypal,"#1b5fb3","#7a2d42")
+Colours=data.frame(Cell_types,mypal)
+
+```
+
+## Old Samples
+
+
+### AL old (71)
+
+```{r}
+alo_71.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/71_alo/A006200124_136871_S9_L00Solo.out/GeneFull/raw/")
+
+alo_71 <- CreateSeuratObject(counts = alo_71.data, project = "alo_71", min.cells = 20, min.features = 80)
+alo_71@meta.data$batch <- "batch_2"
+alo_71@meta.data$diet<- "AL"
+alo_71@meta.data$age <- "old"
+alo_71
+```
+```{r}
+alo_71[["percent.rp"]] <- PercentageFeatureSet(alo_71, pattern = "^Rp")
+alo_71[["percent.mt"]] <- PercentageFeatureSet(alo_71, pattern = "^mt-")
+plot_vln<-VlnPlot(alo_71, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+plot2 <- FeatureScatter(alo_71, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r, warning=FALSE, message=FALSE}
+alo_71 <- subset(alo_71, subset = nFeature_RNA > 50 & nFeature_RNA < 600 & nCount_RNA < 1000 & percent.mt < 2)
+# run sctransform
+alo_71 <- SCTransform(alo_71, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+
+```
+
+
+### AL old 2 ( 6)
+
+```{r}
+alo2_06.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/06_alo2/A006200124_137506_S11_L00Solo.out/GeneFull/raw/")
+
+alo2_06 <- CreateSeuratObject(counts = alo2_06.data, project = "al_old_2", min.cells = 20, min.features = 80)
+alo2_06@meta.data$batch <- "batch_2"
+alo2_06@meta.data$diet <- "AL"
+alo2_06@meta.data$batch <- "young"
+alo2_06
+```
+
+
+```{r, fig.asp=0.5}
+alo2_06[["percent.mt"]] <- PercentageFeatureSet(alo2_06, pattern = "^mt-")
+alo2_06[["percent.rp"]] <- PercentageFeatureSet(alo2_06, pattern = "^Rp")
+plot_vln<-VlnPlot(alo2_06, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+
+plot2 <- FeatureScatter(alo2_06, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+```{r, warning=FALSE, message=FALSE}
+alo2_06 <- subset(alo2_06, subset = nFeature_RNA > 50 & nFeature_RNA < 300 & nCount_RNA < 1000 & percent.mt < 5)
+
+# run sctransform
+alo2_06 <- SCTransform(alo2_06, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+```
+
+```{r}
+old_al_data<-list(alo_71,alo2_06)
+old_al_features <- SelectIntegrationFeatures(object.list = old_al_data, nfeatures = 3000)
+old_al_list <- PrepSCTIntegration(object.list = old_al_data, anchor.features = old_al_features, 
+    verbose = FALSE)
+```
+
+```{r}
+old_al_anchors <- FindIntegrationAnchors(object.list = old_al_list, normalization.method = "SCT", 
+    anchor.features = old_al_features)
+old_al_combined.sct <- IntegrateData(anchorset = old_al_anchors, normalization.method = "SCT")
+
+old_al_combined.sct <- RunPCA(old_al_combined.sct, verbose = FALSE)
+old_al_combined.sct <- RunUMAP(old_al_combined.sct, reduction = "pca", dims = 1:30,)
+```
+```{r}
+
+p1 <- DimPlot(old_al_combined.sct, reduction = "umap", group.by = "orig.ident")
+p1
+```
+
+
+
+
+
+```{r}
+old_al_combined.sct <- FindNeighbors(old_al_combined.sct, reduction = "pca", dims = 1:30)
+old_al_combined.sct <- FindClusters(old_al_combined.sct, resolution = 0.5)
+```
+
+```{r, fig.height=3,fig.width=5}
+p3 <- DimPlot(old_al_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r}
+FeaturePlot(old_al_combined.sct,features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"))
+```
+
+```{r}
+FeaturePlot(old_al_combined.sct,features = c("Rbpj", "Cd300a","Cd36","Cd44","Cd46", "Ccr5","Cd302","Adipor2"))
+FeaturePlot(old_al_combined.sct,features = c("Myo1f","Runx1","Ccr5"))
+```
+
+```{r}
+
+all.markers_oalc=FindAllMarkers(old_al_combined.sct,only.pos = TRUE, min.pct = 0.3, logfc.threshold = 0.3,min.cells.feature = 60,test.use = "t")
+
+top_features_oalc=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_oalc$cluster))){
+  if (nrow(all.markers_oalc[all.markers_oalc$cluster==i,])>10 ){
+     temp= all.markers_oalc[all.markers_oalc$cluster==i,"gene"][1:2]
+      top_features_oalc<-c(top_features_oalc,temp)
+  }else {
+    temp= all.markers_oalc[all.markers_oalc$cluster==i,"gene"][1:2]
+      top_features_oalc<-c(top_features_oalc,temp)
+    
+  }
+
+
+}
+
+VlnPlot(old_al_combined.sct, features = top_features_oalc, 
+    pt.size = 0.2, ncol = 4, stack=TRUE)
+
+
+```
+
+```{r fig.height = 6, fig.width = 6}
+FeaturePlot(old_al_combined.sct, features = top_features_oalc, pt.size = 0.2, 
+    ncol = 3)
+```
+
+```{r}
+top_features_oalc=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_oalc$cluster))){
+  if (nrow(all.markers_oalc[all.markers_oalc$cluster==i,])>10 ){
+     temp= all.markers_oalc[all.markers_oalc$cluster==i,"gene"][1:6]
+      top_features_oalc<-c(top_features_oalc,temp)
+  }else {
+    temp= all.markers_oalc[all.markers_oalc$cluster==i,"gene"][1:nrow(all.markers_oalc[all.markers_oalc$cluster==i,])]
+      top_features_oalc<-c(top_features_oalc,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(old_al_combined.sct,group.by = "ident",features =top_features_oalc)+ scale_fill_viridis()
+```
+
+
+
+
+```{r}
+#c("Mature adipocyte","Mature adipocyte 2", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Endothelial cells", "Muscle cells", "?", "High Mito")
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte (Tshz2)","Granulocyte","Pre-adipocyte (Adamtsl1)", "Neutrophil","Pre-adipocyte (Dpysl3)", "Stem cells","Mature adipocyte (ube2e2)","T-cell (Ccr5)","Endothelial cells")
+
+names(new.cluster.ids) <- levels(old_al_combined.sct)
+old_al_combined.sct <- RenameIdents(old_al_combined.sct, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(old_al_combined.sct),Colours$Cell_types),2])
+p_old_al_combined.sct<-DimPlot(old_al_combined.sct, reduction = "umap", label = FALSE, pt.size = 0.7, repel = TRUE ) 
+p_old_al_combined.sct
+
+```
+
+
+## DR 
+
+### DR old 1 (72)
+
+```{r DR old 1}
+dro_72.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/72_dro//A006200124_136872_S10_L00Solo.out/GeneFull/raw/")
+dro_72 <- CreateSeuratObject(counts = dro_72.data, project = "DR_72", min.cells = 20, min.features = 80)
+dro_72@meta.data$batch <- "batch_2"
+dro_72@meta.data$diet <- "DR"
+dro_72@meta.data$age <- "old"
+dro_72
+```
+
+
+```{r}
+dro_72[["percent.mt"]] <- PercentageFeatureSet(dro_72, pattern = "^mt-")
+dro_72[["percent.rp"]] <- PercentageFeatureSet(dro_72, pattern = "^Rp")
+plot_vln<-VlnPlot(dro_72, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+plot2 <- FeatureScatter(dro_72, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+dro_72 <- subset(dro_72, subset = nFeature_RNA > 50 & nFeature_RNA < 400 & nCount_RNA < 1000 & percent.mt < 2 & percent.rp<2)
+
+# run sctransform
+dro_72 <- SCTransform(dro_72, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+
+```
+
+
+```{r}
+dro2_07.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/07_dro2/A006200124_137507_S12_L00Solo.out/GeneFull/raw/")
+
+dro2_07 <- CreateSeuratObject(counts = dro2_07.data, project = "dr_old_2", min.cells = 20, min.features = 80)
+dro2_07@meta.data$batch <- "batch_3"
+dro2_07@meta.data$diet <- "DR"
+dro2_07@meta.data$age <- "old"
+dro2_07
+```
+
+```{r}
+dro2_07[["percent.mt"]] <- PercentageFeatureSet(dro2_07, pattern = "^mt-")
+dro2_07[["percent.rp"]] <- PercentageFeatureSet(dro2_07, pattern = "^Rp")
+plot_vln<-VlnPlot(dro2_07, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+plot2 <- FeatureScatter(dro2_07, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+dro2_07 <- subset(dro2_07, subset = nFeature_RNA > 50 & nFeature_RNA < 400 & nCount_RNA < 1000 & percent.mt < 2 & percent.rp<2)
+
+# run sctransform
+dro2_07 <- SCTransform(dro2_07, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+
+```
+
+# dr old 2 nul
+
+
+
+```{r setup, include=FALSE}
+old_data<-list(old_al_combined.sct,dro_72)
+
+old_features <- SelectIntegrationFeatures(object.list = old_data, nfeatures = 3000)
+old_list <- PrepSCTIntegration(object.list = old_data, anchor.features = old_features, 
+    verbose = FALSE)
+old_anchors <- FindIntegrationAnchors(object.list = old_list, normalization.method = "SCT", 
+    anchor.features = old_features)
+old_combined.sct <- IntegrateData(anchorset = old_anchors, normalization.method = "SCT")
+
+old_combined.sct <- RunPCA(old_combined.sct, verbose = FALSE)
+old_combined.sct <- RunUMAP(old_combined.sct, reduction = "pca", dims = 1:30)
+
+pal=as.vector(Colours[match(levels(old_combined.sct),Colours$Cell_types),2])
+p1 <- DimPlot(old_combined.sct, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(old_combined.sct, reduction = "umap")
+plot_grid( p1,p2)
+
+
+p3 <- DimPlot(old_combined.sct, reduction = "umap", group.by = "diet")
+p4 <- DimPlot(old_combined.sct, reduction = "umap",group.by = "batch")
+plot_grid( p3,p4)
+```
+
+```{r}
+ old_combined.sct <- FindNeighbors(old_combined.sct, reduction = "pca", dims = 1:30)
+old_combined.sct <- FindClusters(old_combined.sct, resolution = 0.6)
+```
+
+```{r}
+pal=as.vector(Colours[match(levels(old_al_combined.sct),Colours$Cell_types),2])
+p1 <- DimPlot(old_combined.sct, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(old_combined.sct, reduction = "umap",cols=pal)
+p3 <- DimPlot(old_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r}
+DimPlot(old_combined.sct, reduction = "umap", split.by = "diet" )
+```
+
+```{r}
+clust_count<-table(old_combined.sct@meta.data$seurat_clusters,old_combined.sct@meta.data$orig.ident)
+M<-sweep(as.matrix(clust_count),2,colSums(as.matrix(clust_count)),`/`)
+M<-M*100
+M<-melt(M)
+colnames(M)<-c("cluster","origin","percent")
+ggplot(data=M, aes(x=cluster, y=percent, fill=origin)) +
+geom_bar(stat="identity", position=position_dodge())
+
+```
+
+```{r}
+clust_count<-table(old_combined.sct@meta.data$seurat_clusters,old_combined.sct@meta.data$orig.ident)
+pop<-cbind(clust_count[,1]+clust_count[,2],clust_count[,3])
+colnames(pop)<-c("AL old", "DR old")
+M<-sweep(as.matrix(pop),2,colSums(as.matrix(pop)),`/`)
+M<-M*100
+M<-melt(M)
+colnames(M)<-c("cluster","origin","percent")
+ggplot(data=M, aes(x=cluster, y=percent, fill=origin)) +
+geom_bar(stat="identity", position=position_dodge())
+
+```
+```{r}
+chisq.test(pop)
+```
+
+
+```{r}
+DimPlot(old_combined.sct, reduction = "umap", split.by = "diet", group.by ="orig.ident" )
+```
+
+```{r}
+old_combined.sct.markers<-list()
+top_old_combined.sct.markers<-vector()
+plot_markers<-list()
+for ( i in 1:(length(unique(old_combined.sct@meta.data$seurat_clusters))) ){
+  
+  old_combined.sct.markers[[i]] <- data.frame(FindConservedMarkers(old_combined.sct, ident.1 = (i-1), grouping.var = "orig.ident",only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.2,min.cells.feature = 60,test.use = "t" ,verbose = FALSE))
+
+ plot_markers[[i]]<-FeaturePlot(old_combined.sct, features = rownames(old_combined.sct.markers[[i]] )[1:2]) 
+ top_old_combined.sct.markers<-c(top_old_combined.sct.markers,rownames(old_combined.sct.markers[[i]] )[1:3])
+}
+
+plot_grid(plot_markers[[1]], plot_markers[[2]], plot_markers[[3]], plot_markers[[4]], plot_markers[[5]], plot_markers[[6]], plot_markers[[7]], plot_markers[[8]],plot_markers[[9]],plot_markers[[10]],plot_markers[[11]],plot_markers[[12]],plot_markers[[13]])
+```
+
+```{r}
+plot_grid(plot_markers[[1]], plot_markers[[2]], plot_markers[[3]], plot_markers[[4]])
+```
+
+```{r}
+plot_grid(plot_markers[[5]], plot_markers[[6]], plot_markers[[7]], plot_markers[[8]])
+```
+
+```{r}
+plot_grid(plot_markers[[9]],plot_markers[[10]],plot_markers[[11]],plot_markers[[12]],plot_markers[[13]])
+```
+
+```{r}
+top_features_oc=vector()
+temp=vector()
+for ( i in 1:length(old_combined.sct.markers)){
+  if (nrow(old_combined.sct.markers[[i]])>10 ){
+     temp= rownames(old_combined.sct.markers[[i]][1:6,])
+      top_features_oc<-c(top_features_oc,temp)
+  }else {
+    temp= rownames(old_combined.sct.markers[[i]])
+      top_features_oc<-c(top_features_oc,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(old_combined.sct,group.by = "ident",features =top_features_oc)+ scale_fill_viridis()
+```
+
+
+
+
+```{r}
+plot <-DotPlot(old_combined.sct,features =unique(top_old_combined.sct.markers),split.by = "diet",cols = c("blue", "red"))
+plot + theme(axis.text.x = element_text(angle = 90))
+```
+
