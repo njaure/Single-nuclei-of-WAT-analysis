@@ -1,0 +1,419 @@
+---
+title: "Switch (AL vs ALDR) pipeline"
+author: "Nathalie"
+date: "2/23/2021"
+output: html_document
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(ggpubr)
+library(viridis)
+library(ggsci)
+```
+
+
+
+```{r}
+Cell_types= c("Mature adipocyte","Mature adipocyte 2", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Endothelial cells", "Muscle cells", "?", "High Mito")
+mypal=pal_locuszoom("default",alpha = 0.9)(7)
+mypal=c(mypal,"#1b5fb3","#7a2d42")
+Colours=data.frame(Cell_types,mypal)
+
+```
+
+## Switch 16 Samples
+
+### ALDR 16 (35)
+
+```{r}
+aldr16_35.data <- Read10X(data.dir="/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/35_aldr16/Solo.out/GeneFull/raw/")
+
+aldr16_35 <- CreateSeuratObject(counts = aldr16_35.data, project = "aldr16_35", min.cells = 20, min.features = 80)
+aldr16_35@meta.data$batch <- "batch_1"
+aldr16_35@meta.data$diet<- "aldr16"
+aldr16_35@meta.data$age <- "switch"
+aldr16_35
+```
+
+
+```{r}
+aldr16_35[["percent.rp"]] <- PercentageFeatureSet(aldr16_35, pattern = "^Rp")
+aldr16_35[["percent.mt"]] <- PercentageFeatureSet(aldr16_35, pattern = "^mt-")
+plot_vln<-VlnPlot(aldr16_35, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+plot2 <- FeatureScatter(aldr16_35, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r, warning=FALSE, message=FALSE}
+aldr16_35 <- subset(aldr16_35, subset = nFeature_RNA > 50 & nFeature_RNA < 600 & nCount_RNA < 600 & percent.mt < 2)
+# run sctransform
+aldr16_35 <- SCTransform(aldr16_35, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+
+```
+
+
+### ALDR16 2 ( 08)
+
+```{r}
+aldr162_08.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/08_aldr162/A006200124_137508_S13_L00Solo.out/GeneFull/raw/")
+
+aldr162_08 <- CreateSeuratObject(counts = aldr162_08.data, project = "aldr16_2", min.cells = 20, min.features = 80)
+aldr162_08@meta.data$batch <- "batch_3"
+aldr162_08@meta.data$diet <- "aldr16"
+aldr162_08@meta.data$batch <- "switch"
+aldr162_08
+```
+
+
+
+```{r}
+aldr162_08[["percent.mt"]] <- PercentageFeatureSet(aldr162_08, pattern = "^mt-")
+aldr162_08[["percent.rp"]] <- PercentageFeatureSet(aldr162_08, pattern = "^Rp")
+plot_vln<-VlnPlot(aldr162_08, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+
+plot2 <- FeatureScatter(aldr162_08, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+```{r, warning=FALSE, message=FALSE}
+aldr162_08 <- subset(aldr162_08, subset = nFeature_RNA > 50 & nFeature_RNA < 400 & nCount_RNA < 1000 & percent.mt < 2)
+
+# run sctransform
+aldr162_08 <- SCTransform(aldr162_08, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+```
+
+```{r}
+aldr16_data<-list(aldr16_35,aldr162_08)
+aldr16_features <- SelectIntegrationFeatures(object.list = aldr16_data, nfeatures = 3000)
+aldr16_list <- PrepSCTIntegration(object.list = aldr16_data, anchor.features = aldr16_features, 
+    verbose = FALSE)
+```
+
+```{r}
+aldr16_anchors <- FindIntegrationAnchors(object.list = aldr16_list, normalization.method = "SCT", 
+    anchor.features = aldr16_features)
+aldr16_combined.sct <- IntegrateData(anchorset = aldr16_anchors, normalization.method = "SCT")
+
+aldr16_combined.sct <- RunPCA(aldr16_combined.sct, verbose = FALSE)
+aldr16_combined.sct <- RunUMAP(aldr16_combined.sct, reduction = "pca", dims = 1:30,)
+```
+```{r}
+
+p1 <- DimPlot(aldr16_combined.sct, reduction = "umap", group.by = "orig.ident")
+p1
+```
+
+
+
+
+
+```{r}
+aldr16_combined.sct <- FindNeighbors(aldr16_combined.sct, reduction = "pca", dims = 1:30)
+aldr16_combined.sct <- FindClusters(aldr16_combined.sct, resolution = 0.5)
+```
+
+```{r, fig.height=6,fig.width=10}
+p3 <- DimPlot(aldr16_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r}
+FeaturePlot(aldr16_combined.sct,features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"))
+```
+
+```{r}
+FeaturePlot(aldr16_combined.sct,features = c("Rbpj", "Cd300a","Cd36","Cd44","Cd46", "Ccr5","Cd302","Adipor2"))
+FeaturePlot(aldr16_combined.sct,features = c("Acaca","Acat1","Acly","Thrsp"))
+```
+
+```{r}
+
+all.markers_16=FindAllMarkers(aldr16_combined.sct,only.pos = TRUE, min.pct = 0.3, logfc.threshold = 0.3,min.cells.feature = 60,test.use = "t")
+
+top_features_16=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_16$cluster))){
+  if (nrow(all.markers_16[all.markers_16$cluster==i,])>10 ){
+     temp= all.markers_16[all.markers_16$cluster==i,"gene"][1:2]
+      top_features_16<-c(top_features_16,temp)
+  }else {
+    temp= all.markers_16[all.markers_16$cluster==i,"gene"][1:2]
+      top_features_16<-c(top_features_16,temp)
+    
+  }
+
+
+}
+
+VlnPlot(aldr16_combined.sct, features = top_features_16, 
+    pt.size = 0.2, ncol = 4, stack=TRUE)
+
+
+```
+
+```{r }
+FeaturePlot(aldr16_combined.sct, features = top_features_16, pt.size = 0.2, 
+    ncol = 3)
+```
+
+```{r}
+top_features_16=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_16$cluster))){
+  if (nrow(all.markers_16[all.markers_16$cluster==i,])>10 ){
+     temp= all.markers_16[all.markers_16$cluster==i,"gene"][1:6]
+      top_features_16<-c(top_features_16,temp)
+  }else {
+    temp= all.markers_16[all.markers_16$cluster==i,"gene"][1:nrow(all.markers_16[all.markers_16$cluster==i,])]
+      top_features_16<-c(top_features_16,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(aldr16_combined.sct,group.by = "ident",features =top_features_16)+ scale_fill_viridis()
+```
+
+
+
+
+```{r}
+#c("Mature adipocyte","Mature adipocyte 2", "Pre-adipocyte (Tshz2)", "Myeloid precursors", "Stem cells", "Endothelial cells", "Muscle cells", "?", "High Mito")
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte (Tshz2)","Granulocyte","mature adipocyte (Adamtsl1)", "Neutrophil","Pre-adipocyte (Dpysl3)", "Stem cells","Mature adipocyte (ube2e2)","T-cell (Ccr5)","Endothelial cells")
+
+names(new.cluster.ids) <- levels(aldr16_combined.sct)
+aldr16_combined.sct <- RenameIdents(aldr16_combined.sct, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(aldr16_combined.sct),Colours$Cell_types),2])
+p_aldr16_combined.sct<-DimPlot(aldr16_combined.sct, reduction = "umap", label = FALSE, pt.size = 0.7, repel = TRUE ) 
+p_aldr16_combined.sct
+
+```
+
+
+## ALDR 20
+
+### ALDR20 1 (36)
+
+```{r}
+aldr20_36.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/36_aldr20/Solo.out/GeneFull/raw/")
+
+aldr20_36 <- CreateSeuratObject(counts = aldr20_36.data, project = "aldr20", min.cells = 20, min.features = 70)
+aldr20_36@meta.data$batch <- "batch_1"
+aldr20_36@meta.data$diet<- "aldr20"
+aldr20_36@meta.data$age <- "old"
+aldr20_36
+```
+
+
+
+```{r}
+aldr20_36[["percent.mt"]] <- PercentageFeatureSet(aldr20_36, pattern = "^mt-")
+aldr20_36[["percent.rp"]] <- PercentageFeatureSet(aldr20_36, pattern = "^Rp")
+plot_vln<-VlnPlot(aldr20_36, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+plot2 <- FeatureScatter(aldr20_36, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+#nul
+
+```{r}
+aldr202_09.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/09_aldr202/A006200124_137509_S14_L00Solo.out/GeneFull/raw/")
+
+aldr202_09 <- CreateSeuratObject(counts = aldr202_09.data, project = "aldr_2", min.cells = 20, min.features = 80)
+aldr202_09@meta.data$batch <- "batch_3"
+aldr202_09@meta.data$diet <- "aldr20"
+aldr202_09@meta.data$age <- "old"
+aldr202_09
+```
+
+
+
+```{r}
+aldr202_09[["percent.mt"]] <- PercentageFeatureSet(aldr202_09, pattern = "^mt-")
+aldr202_09[["percent.rp"]] <- PercentageFeatureSet(aldr202_09, pattern = "^Rp")
+plot_vln<-VlnPlot(aldr202_09, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+plot2 <- FeatureScatter(aldr202_09, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot_grid( plot_vln,plot2)
+```
+
+```{r, message=FALSE, warning=FALSE}
+aldr202_09 <- subset(aldr202_09, subset = nFeature_RNA > 50 & nFeature_RNA < 500 & nCount_RNA < 1000 & percent.mt < 2 & percent.rp<2)
+
+# run sctransform
+aldr202_09 <- SCTransform(aldr202_09, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+
+```
+
+
+
+
+
+```{r setup, include=FALSE}
+switch_data<-list(aldr16_combined.sct,aldr202_09)
+
+switch_features <- SelectIntegrationFeatures(object.list = switch_data, nfeatures = 5000)
+switch_list <- PrepSCTIntegration(object.list = switch_data, anchor.features = switch_features, 
+    verbose = FALSE)
+switch_anchors <- FindIntegrationAnchors(object.list = switch_list, normalization.method = "SCT", 
+    anchor.features = switch_features)
+switch_combined.sct <- IntegrateData(anchorset = switch_anchors, normalization.method = "SCT")
+
+switch_combined.sct <- RunPCA(switch_combined.sct, verbose = FALSE)
+switch_combined.sct <- RunUMAP(switch_combined.sct, reduction = "pca", dims = 1:30)
+
+pal=as.vector(Colours[match(levels(switch_combined.sct),Colours$Cell_types),2])
+p1 <- DimPlot(switch_combined.sct, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(switch_combined.sct, reduction = "umap")
+plot_grid( p1,p2)
+
+
+p3 <- DimPlot(switch_combined.sct, reduction = "umap", group.by = "diet")
+p4 <- DimPlot(switch_combined.sct, reduction = "umap",group.by = "batch")
+plot_grid( p3,p4)
+```
+
+```{r}
+ switch_combined.sct <- FindNeighbors(switch_combined.sct, reduction = "pca", dims = 1:30)
+switch_combined.sct <- FindClusters(switch_combined.sct, resolution = 0.5)
+```
+
+```{r}
+pal=as.vector(Colours[match(levels(aldr16_combined.sct),Colours$Cell_types),2])
+p1 <- DimPlot(switch_combined.sct, reduction = "umap", group.by = "orig.ident")
+p2 <- DimPlot(switch_combined.sct, reduction = "umap",cols=pal)
+p3 <- DimPlot(switch_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r}
+DimPlot(switch_combined.sct, reduction = "umap", split.by = "diet" )
+```
+
+```{r}
+clust_count<-table(switch_combined.sct@meta.data$seurat_clusters,switch_combined.sct@meta.data$orig.ident)
+M<-sweep(as.matrix(clust_count),2,colSums(as.matrix(clust_count)),`/`)
+M<-M*100
+M<-melt(M)
+colnames(M)<-c("cluster","origin","percent")
+ggplot(data=M, aes(x=cluster, y=percent, fill=origin)) +
+geom_bar(stat="identity", position=position_dodge())
+
+```
+
+```{r}
+clust_count<-table(switch_combined.sct@meta.data$seurat_clusters,switch_combined.sct@meta.data$orig.ident)
+pop<-cbind(clust_count[,1]+clust_count[,2],clust_count[,3])
+colnames(pop)<-c("ALDR20 switch", "ALDR16 switch")
+M<-sweep(as.matrix(pop),2,colSums(as.matrix(pop)),`/`)
+M<-M*100
+M<-melt(M)
+colnames(M)<-c("cluster","origin","percent")
+ggplot(data=M, aes(x=cluster, y=percent, fill=origin)) +
+geom_bar(stat="identity", position=position_dodge())
+
+```
+```{r}
+chisq.test(pop)
+```
+
+
+```{r}
+DimPlot(switch_combined.sct, reduction = "umap", split.by = "diet", group.by ="orig.ident" )
+```
+
+```{r}
+DefaultAssay(switch_combined.sct) <- "RNA"
+switch_combined.sct.markers<-list()
+top_switch_combined.sct.markers<-vector()
+plot_markers<-list()
+for ( i in 1:(length(unique(switch_combined.sct@meta.data$seurat_clusters))) ){
+  
+  switch_combined.sct.markers[[i]] <- data.frame(FindConservedMarkers(switch_combined.sct, ident.1 = (i-1), grouping.var = "diet",only.pos = TRUE, min.pct = 0.2, logfc.threshswitch = 0.2,min.cells.feature = 60,test.use = "t" ,verbose = FALSE))
+
+ plot_markers[[i]]<-FeaturePlot(switch_combined.sct, features = rownames(switch_combined.sct.markers[[i]] )[1:2]) 
+ top_switch_combined.sct.markers<-c(top_switch_combined.sct.markers,rownames(switch_combined.sct.markers[[i]] )[1:3])
+}
+
+plot_grid(plot_markers[[1]], plot_markers[[2]], plot_markers[[3]], plot_markers[[4]], plot_markers[[5]], plot_markers[[6]], plot_markers[[7]], plot_markers[[8]],plot_markers[[9]],plot_markers[[10]],plot_markers[[11]])
+```
+
+```{r}
+plot_grid(plot_markers[[1]], plot_markers[[2]], plot_markers[[3]], plot_markers[[4]])
+```
+
+```{r}
+plot_grid(plot_markers[[5]], plot_markers[[6]], plot_markers[[7]], plot_markers[[8]])
+```
+
+```{r}
+plot_grid(plot_markers[[9]],plot_markers[[10]],plot_markers[[11]])
+```
+
+```{r}
+top_features_oc=vector()
+temp=vector()
+for ( i in 1:length(switch_combined.sct.markers)){
+  if (nrow(switch_combined.sct.markers[[i]])>10 ){
+     temp= rownames(switch_combined.sct.markers[[i]][1:6,])
+      top_features_oc<-c(top_features_oc,temp)
+  }else {
+    temp= rownames(switch_combined.sct.markers[[i]])
+      top_features_oc<-c(top_features_oc,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(switch_combined.sct,group.by = "ident",features =top_features_oc)+ scale_fill_viridis()
+```
+```{r}
+top_features_oc=vector()
+temp=vector()
+for ( i in 1:length(switch_combined.sct.markers)){
+  if (nrow(switch_combined.sct.markers[[i]])>2 ){
+     temp= rownames(switch_combined.sct.markers[[i]][1:2,])
+      top_features_oc<-c(top_features_oc,temp)
+  }else {
+    temp= rownames(switch_combined.sct.markers[[i]])
+      top_features_oc<-c(top_features_oc,temp)
+    
+  }
+
+
+}
+
+
+VlnPlot(switch_combined.sct, features = top_features_oc, 
+    pt.size = 0.2, ncol = 4, stack=TRUE)
+
+```
+
+
+
+
+```{r}
+plot <-DotPlot(switch_combined.sct,features =unique(top_switch_combined.sct.markers),split.by = "diet",cols = c("blue", "red"))
+plot + theme(axis.text.x = element_text(angle = 90))
+```
+
+
+```{r}
+new.cluster.ids <- c("Mature adipocyte", "Myeloid cells", 
+    "Pre-adipocyte", "Stem cell", "?", "Mature adipocyte 2", "Endothelial cell", "Stromal cell")
+
+names(new.cluster.ids) <- levels(young_combined.sct)
+young_combined.sct <- RenameIdents(young_combined.sct, new.cluster.ids)
+
+```
+
+```{r}
+DotPlot(young_combined.sct,features =unique(top_young_combined.sct.markers),split.by = "diet",cols = c("blue", "red"))
+```
