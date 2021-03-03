@@ -63,7 +63,7 @@ alo2_06.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/
 alo2_06 <- CreateSeuratObject(counts = alo2_06.data, project = "al_old_2", min.cells = 20, min.features = 80)
 alo2_06@meta.data$batch <- "batch_2"
 alo2_06@meta.data$diet <- "AL"
-alo2_06@meta.data$batch <- "young"
+alo2_06@meta.data$batch <- "old"
 alo2_06
 ```
 
@@ -383,3 +383,16 @@ plot <-DotPlot(old_combined.sct,features =unique(top_old_combined.sct.markers),s
 plot + theme(axis.text.x = element_text(angle = 90))
 ```
 
+
+```{r}
+new.cluster.ids <- c("Mature adipocyte", "Myeloid cells", 
+    "Pre-adipocyte", "Stem cell", "?", "Mature adipocyte 2", "Endothelial cell", "Stromal cell")
+
+names(new.cluster.ids) <- levels(young_combined.sct)
+young_combined.sct <- RenameIdents(young_combined.sct, new.cluster.ids)
+
+```
+
+```{r}
+DotPlot(young_combined.sct,features =unique(top_young_combined.sct.markers),split.by = "diet",cols = c("blue", "red"))
+```

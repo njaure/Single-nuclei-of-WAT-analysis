@@ -328,7 +328,7 @@ DimPlot(switch_combined.sct, reduction = "umap", split.by = "diet", group.by ="o
 ```
 
 ```{r}
-DefaultAssay(switch_combined.sct) <- "RNA"
+DefaultAssay(switch_combined.sct) <- "integrated"
 switch_combined.sct.markers<-list()
 top_switch_combined.sct.markers<-vector()
 plot_markers<-list()
