@@ -1,0 +1,625 @@
+---
+title: "Single-nuclei analysis of white adipose tissue : Young Samples report"
+author: "Nathalie"
+date: "8/3/2021"
+output: html_document
+---
+
+```{r packages, include = FALSE}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(ggpubr)
+library(viridis)
+library(ggsci)
+library('SingleR')
+library('celldex')
+library('SingleCellExperiment')
+library(pheatmap)
+library(scran)
+library(stringr)
+library(monocle3)
+library(SeuratWrappers)
+```
+
+```{r function, include = FALSE}
+get_earliest_principal_node <- function(cds, ident){
+  cell_ids <- which(colData(cds)[, "ident"] == ident)
+  
+  closest_vertex <-
+  cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+Mrna_ref<-MouseRNAseqData()
+
+Mim_ref<-ImmGenData()
+
+```
+
+```{r color palette, message=FALSE, warning=FALSE, paged.print=FALSE}
+Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+mypal=c("#D04F55","#2194EC","#E8CA5D","#35A984","#D45E57","#7D6AC8","#3F826D","#F3E598","#E4A278","#7BB0A8","#8BA87C","#ADC2C1")
+Colours=data.frame(Cell_types,mypal)
+
+```
+
+- List of samples :
+  - Aly : batch1, medium quality (aly_37)
+  - Aly2 : batch 2, bad quality (aly_69)
+  - DRy : bacth 1 , bad quality
+  - DRy2 : batch 2, medium quality (dr2_70)
+
+***  
+
+## AL young (37)
+
+```{r load aly_37,message=FALSE,warning=FALSE, echo = FALSE}
+aly_37.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/37_aly/Solo.out/GeneFull/raw/")
+
+aly_37 <- CreateSeuratObject(counts = aly_37.data, project = "al_young", min.cells = 10, min.features = 80)
+aly_37@meta.data$batch <- "batch_1"
+aly_37@meta.data$diet<- "AL"
+aly_37@meta.data$age <- "Young"
+aly_37
+```
+
+- 1076 features across 797 samples after first filtering of taking features across minimum 20 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality aly, echo = FALSE}
+aly_37[["percent.rp"]] <- PercentageFeatureSet(aly_37, pattern = "^Rp")
+aly_37[["percent.mt"]] <- PercentageFeatureSet(aly_37, pattern = "^mt-")
+VlnPlot(aly_37, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+
+```
+
+```{r plot quality 2,echo = FALSE}
+FeatureScatter(aly_37, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+- no big abnormality detected, filtering on 50<x<220,mt<2, rp<1
+
+```{r filtering2, message=FALSE, warning=FALSE,echo = FALSE}
+aly_37 <- subset(aly_37, subset = nFeature_RNA > 50 & nFeature_RNA < 300 & nCount_RNA < 1000 & percent.mt < 2 & percent.rp < 1)
+
+```
+
+- 1076 features across 724 samples after second filtering. 
+
+### Normalisation
+
+```{r sctransform,message=FALSE, warning=FALSE}
+# run sctransform
+aly_37 <- SCTransform(aly_37, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+aly_37
+```
+
+***
+
+## AL young (69)
+
+
+```{r load aly2_69,message=FALSE,warning=FALSE, echo = FALSE}
+aly2_69.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/69_aly2/Solo.out/GeneFull/raw/")
+aly2_69 <- CreateSeuratObject(counts = aly2_69.data, project = "al_young_2", min.cells = 10, min.features = 80)
+aly2_69@meta.data$batch <- "batch_2"
+aly2_69@meta.data$diet<- "AL"
+aly2_69@meta.data$age <- "Young"
+aly2_69
+```
+
+- 546 features across 556 samples after first filtering of taking features across minimum 20 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality aly2, message=FALSE,warning=FALSE, echo = FALSE}
+aly2_69[["percent.rp"]] <- PercentageFeatureSet(aly2_69, pattern = "^Rp-")
+aly2_69[["percent.mt"]] <- PercentageFeatureSet(aly2_69, pattern = "^mt-")
+VlnPlot(aly2_69, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+```
+
+```{r plot quality 2 aly2,echo = FALSE}
+FeatureScatter(aly2_69, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+
+```{r filtering2 aly2, message=FALSE, warning=FALSE}
+aly2_69 <- subset(aly2_69, subset = nFeature_RNA > 50 & nFeature_RNA < 200 & nCount_RNA < 1000 & percent.mt < 0.1 & percent.rp < 1)
+
+```
+
+- 546 features across 191 samples after second filtering, removing cells with not enough features.
+
+### Normalisation
+
+```{r sctransform aly2,message=FALSE, warning=FALSE}
+# run sctransform
+aly2_69 <- SCTransform(aly2_69, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+aly2_69
+```
+
+***
+<br>
+***
+
+### Merging
+
+```{r merging aly,message=FALSE, warning=FALSE, echo = FALSE}
+aly_data<-list(aly_37,aly2_69)
+aly_features <- SelectIntegrationFeatures(object.list = aly_data, nfeatures = 5000)
+aly_list <- PrepSCTIntegration(object.list = aly_data, anchor.features = aly_features, 
+    verbose = FALSE)
+aly_anchors <- FindIntegrationAnchors(object.list = aly_list, normalization.method = "SCT", 
+    anchor.features = aly_features)
+aly_combined.sct <- IntegrateData(anchorset = aly_anchors, normalization.method = "SCT")
+
+aly_combined.sct <- RunPCA(aly_combined.sct, verbose = FALSE)
+aly_combined.sct <- RunUMAP(aly_combined.sct, reduction = "pca", dims = 1:30)
+```
+- 2713 features across 915 samples after merging.
+
+```{r}
+dim(aly_combined.sct)
+```
+
+
+```{r umap plot aly, echo = FALSE}
+p1<-DimPlot(aly_combined.sct, reduction = "umap", group.by = "orig.ident")
+p1
+```
+
+### Clustering
+
+```{r clustering aly, echo = FALSE}
+aly_combined.sct <- FindNeighbors(aly_combined.sct, reduction = "pca", dims = 1:30)
+aly_combined.sct <- FindClusters(aly_combined.sct, resolution = 0.6)
+p3 <- DimPlot(aly_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+
+```{r umap per quality criteria aly, echo = FALSE}
+FeaturePlot(aly_combined.sct,features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"))
+```
+
+### Gene Markers
+
+
+```{r}
+aly_combined.sct
+DefaultAssay(aly_combined.sct)<-"SCT"
+dim(aly_combined.sct)
+```
+
+```{r topmarker aly, echo = FALSE, warning=FALSE, message=FALSE}
+all.markers_aly=FindAllMarkers(aly_combined.sct,only.pos = TRUE, min.pct = 0.3, logfc.threshold = 0.2,min.cells.feature = 50,test.use = "t")
+
+top_features_aly=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_aly$cluster))){
+  if (nrow(all.markers_aly[all.markers_aly$cluster==i,])>10 ){
+     temp= all.markers_aly[all.markers_aly$cluster==i,"gene"][1:2]
+      top_features_aly<-c(top_features_aly,temp)
+  }else {
+    temp= all.markers_aly[all.markers_aly$cluster==i,"gene"][1:2]
+      top_features_aly<-c(top_features_aly,temp)
+    
+  }
+
+
+}
+
+VlnPlot(aly_combined.sct, features = top_features_aly, 
+    pt.size = 0.2, stack=TRUE)
+
+
+```
+```{r feature plot, echo = FALSE, warning=FALSE}
+FeaturePlot(aly_combined.sct, features = top_features_aly, pt.size = 0.2, 
+    ncol = 3)
+```
+
+
+```{r heatmap aly, echo = FALSE, warning=FALSE, message=FALSE}
+
+top_features_aly=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_aly$cluster))){
+  if (nrow(all.markers_aly[all.markers_aly$cluster==i,])>10 ){
+     temp= all.markers_aly[all.markers_aly$cluster==i,"gene"][1:6]
+      top_features_aly<-c(top_features_aly,temp)
+  }else {
+    temp= all.markers_aly[all.markers_aly$cluster==i,"gene"][1:nrow(all.markers_aly[all.markers_aly$cluster==i,])]
+      top_features_aly<-c(top_features_aly,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(aly_combined.sct,group.by = "ident",features =top_features_aly)+ scale_fill_viridis()
+```
+
+### Cell type identification
+
+#### Single R (automated assignement)
+
+```{r setup aly, include=FALSE, message=FALSE }
+Mrna_ref<-MouseRNAseqData()
+
+pred.aly_mouse <- SingleR(test = as.SingleCellExperiment(aly_combined.sct), ref = Mrna_ref, assay.type.test=1,
+    labels = Mrna_ref$label.main,clusters = Idents(aly_combined.sct),de.method="wilcox")
+
+score.aly_mouse<-pruneScores(pred.aly_mouse,nmads=2,min.diff.med=0.2)
+for (i in 1:nrow(pred.aly_mouse)){
+  if(score.aly_mouse[i]==FALSE){
+    pred.aly_mouse$labels[i]<-pred.aly_mouse$labels[i]
+  } else { pred.aly_mouse$labels[i]<-"NA"
+  }
+}
+
+  new_id_clusters=Idents(aly_combined.sct)
+for (i in 1:nrow(pred.aly_mouse)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aly_mouse)[i], pred.aly_mouse$labels[i]) 
+}
+
+
+aly_combined.sct@meta.data$singler_mouse<-new_id_clusters
+```
+
+```{r setup aly im , include=FALSE, message=FALSE}
+Mim_ref<-ImmGenData()
+
+pred.aly_im <- SingleR(test = as.SingleCellExperiment(aly_combined.sct), ref = Mim_ref, assay.type.test=1,
+    labels = Mim_ref$label.main,clusters = Idents(aly_combined.sct),de.method="wilcox")
+score.aly_im<-pruneScores(pred.aly_im,nmads=2,min.diff.med=0.2)
+
+for (i in 1:nrow(pred.aly_im)){
+  if(score.aly_im[i]==FALSE){
+    pred.aly_im$labels[i]<-pred.aly_im$labels[i]
+  } else { pred.aly_im$labels[i]<-"NA"
+  }
+}
+
+
+  new_id_clusters=Idents(aly_combined.sct)
+for (i in 1:nrow(pred.aly_im)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aly_im)[i], pred.aly_im$labels[i]) 
+}
+
+
+aly_combined.sct@meta.data$singler_im<-new_id_clusters
+
+```
+
+```{r, include=FALSE, message=FALSE }
+p_mouse<-DimPlot(aly_combined.sct, reduction = "umap", group.by = "singler_mouse")
+p_im<-DimPlot(aly_combined.sct, reduction = "umap", group.by = "singler_im")
+
+plot_grid( p3,p_mouse,p_im)
+
+```
+
+
+
+### Adipocyte differenciation markers
+
+```{r feature plot markers adipo, echo=FALSE}
+FeaturePlot(aly_combined.sct, features = c("Pparg","Igf1","Tgfbi","Tgfb3","Sparc","Angptl4","Pex5l"), pt.size = 0.3, 
+    ncol = 3)
+```
+
+### Pseudo-time analysis
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE }
+aly_combined.sct.cds <- as.cell_data_set(aly_combined.sct)
+aly_combined.sct.cds<- cluster_cells(cds = aly_combined.sct.cds, reduction_method = "UMAP",resolution = 0.005)
+
+aly_combined.sct.cds <- learn_graph(aly_combined.sct.cds, use_partition = TRUE)
+
+plot_cells(aly_combined.sct.cds,
+           color_cells_by = "cluster",
+           label_groups_by_cluster=FALSE,
+           label_leaves=TRUE,
+           label_branch_points=TRUE)
+
+aly_combined.sct.cds <- order_cells(aly_combined.sct.cds, root_pr_nodes=get_earliest_principal_node(aly_combined.sct.cds,3),reduction_method = "UMAP")
+plot_cells(
+  cds = aly_combined.sct.cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE
+)
+```
+ 
+ 
+ ### Cell type Identification
+ 
+ - 0 : Mature adipocyte
+ - 1 : Fibroblast ( pre-adipocyte)
+ - 2 : Macrophage 
+ - 3 : Unknown (Dao high)
+ - 4 : Endothelial cell 
+ - 5 : Unknown
+
+```{r aly cell type id, echo=FALSE}
+#Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage","Precursor (Dao)","Endothelial cell", "Undefined")
+
+names(new.cluster.ids) <- levels(aly_combined.sct)
+aly_combined.sct<- RenameIdents(aly_combined.sct, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(aly_combined.sct),Colours$Cell_types),2])
+p_aly_combined.sct<-DimPlot(aly_combined.sct, reduction = "umap", pt.size = 0.8,cols = pal,repel = TRUE) 
+p_aly_combined.sct
+
+```
+
+
+***  
+
+## DR young (38)
+
+```{r load dry_38,message=FALSE,warning=FALSE, echo = FALSE}
+dry_38.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/38_dry/Solo.out/GeneFull/raw/")
+dry_38 <- CreateSeuratObject(counts = dry_38.data, project = "dr_young", min.cells = 10, min.features = 80)
+dry_38@meta.data$batch <- "batch_1"
+dry_38@meta.data$diet<- "DR"
+dry_38@meta.data$age <- "Young"
+dry_38
+```
+
+- 61 features across 47 samples after first filtering of taking features across minimum 10 cells, and cells minimum 80 features. 
+
+- quality too bad, not possible to work with this sample
+
+***  
+
+## DR young 2 (70)
+
+```{r load dry2_70,message=FALSE,warning=FALSE, echo = FALSE}
+dry2_70.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/70_dry2/Solo.out/GeneFull/raw/")
+
+dry2_70 <- CreateSeuratObject(counts = dry2_70.data, project = "dr2_young", min.cells = 10, min.features = 80)
+dry2_70@meta.data$batch <- "batch_2"
+dry2_70@meta.data$diet<- "DR"
+dry2_70@meta.data$age <- "Young"
+dry2_70
+```
+
+- 3179 features across 1053 samples after first filtering of taking features across minimum 10 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality dry2, echo = FALSE}
+dry2_70[["percent.rp"]] <- PercentageFeatureSet(dry2_70, pattern = "^Rp")
+dry2_70[["percent.mt"]] <- PercentageFeatureSet(dry2_70, pattern = "^mt-")
+VlnPlot(dry2_70, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+
+```
+
+```{r plot quality 2 dry2,echo = FALSE}
+FeatureScatter(dry2_70, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+- no big abnormality detected, filtering on 50<x<220,mt<2, rp<1
+
+```{r filtering dry2, message=FALSE, warning=FALSE,echo = FALSE}
+dry2_70 <- subset(dry2_70, subset = nFeature_RNA > 50 & nFeature_RNA < 400 & nCount_RNA < 1000 & percent.mt < 5 & percent.rp < 5)
+
+```
+
+- 3179 features across 864 samples after second filtering. 
+
+### Normalisation
+
+```{r sctransform dry2,message=FALSE, warning=FALSE}
+# run sctransform
+dry2_70 <- SCTransform(dry2_70, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+```
+
+```{r message=FALSE, warning=FALSE}
+dry2_70 <- RunPCA( dry2_70, verbose = FALSE)
+dry2_70<- RunUMAP(dry2_70, reduction = "pca", dims = 1:30)
+```
+
+### Clustering
+
+```{r clustering dry, echo = FALSE}
+dry2_70 <- FindNeighbors(dry2_70, reduction = "pca", dims = 1:30)
+dry2_70 <- FindClusters(dry2_70, resolution = 0.6)
+p3 <- DimPlot(dry2_70, reduction = "umap")
+p3
+```
+
+
+```{r umap per quality criteria dry, echo = FALSE}
+FeaturePlot(aly_combined.sct,features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"))
+```
+
+### Gene Markers
+
+
+```{r}
+DefaultAssay(dry2_70 )<-"SCT"
+dim(dry2_70 )
+```
+
+```{r topmarker dry, echo = FALSE, warning=FALSE, message=FALSE}
+all.markers_dry=FindAllMarkers(dry2_70,only.pos = TRUE, min.pct = 0.3, logfc.threshold = 0.2,min.cells.feature = 50,test.use = "t")
+
+top_features_dry=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_dry$cluster))){
+  if (nrow(all.markers_dry[all.markers_dry$cluster==i,])>10 ){
+     temp= all.markers_dry[all.markers_dry$cluster==i,"gene"][1:2]
+      top_features_dry<-c(top_features_dry,temp)
+  }else {
+    temp= all.markers_dry[all.markers_dry$cluster==i,"gene"][1:2]
+      top_features_dry<-c(top_features_dry,temp)
+    
+  }
+
+
+}
+
+VlnPlot(dry2_70, features = top_features_dry, 
+    pt.size = 0.2, stack=TRUE)
+
+
+```
+
+
+```{r feature plot dry, echo = FALSE, warning=FALSE}
+FeaturePlot(dry2_70, features = top_features_dry, pt.size = 0.2, 
+    ncol = 3)
+```
+
+
+```{r heatmap dry, echo = FALSE, warning=FALSE, message=FALSE}
+
+top_features_dry=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_dry$cluster))){
+  if (nrow(all.markers_dry[all.markers_dry$cluster==i,])>10 ){
+     temp= all.markers_dry[all.markers_dry$cluster==i,"gene"][1:6]
+      top_features_dry<-c(top_features_dry,temp)
+  }else {
+    temp= all.markers_dry[all.markers_dry$cluster==i,"gene"][1:nrow(all.markers_dry[all.markers_dry$cluster==i,])]
+      top_features_dry<-c(top_features_dry,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(dry2_70,group.by = "ident",features =top_features_dry)+ scale_fill_viridis()
+```
+
+### Cell type identification
+
+#### Single R (automated assignement)
+
+```{r setup dry, include=FALSE, message=FALSE }
+
+pred.dry_mouse <- SingleR(test = as.SingleCellExperiment(dry2_70), ref = Mrna_ref, assay.type.test=1,
+    labels = Mrna_ref$label.main,clusters = Idents(dry2_70),de.method="wilcox")
+
+score.dry_mouse<-pruneScores(pred.dry_mouse,nmads=2,min.diff.med=0.2)
+for (i in 1:nrow(pred.dry_mouse)){
+  if(score.dry_mouse[i]==FALSE){
+    pred.dry_mouse$labels[i]<-pred.dry_mouse$labels[i]
+  } else { pred.dry_mouse$labels[i]<-"NA"
+  }
+}
+
+  new_id_clusters=Idents(dry2_70)
+for (i in 1:nrow(pred.dry_mouse)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.dry_mouse)[i], pred.dry_mouse$labels[i]) 
+}
+
+
+dry2_70@meta.data$singler_mouse<-new_id_clusters
+```
+
+```{r setup dry im , include=FALSE, message=FALSE}
+
+pred.dry_im <- SingleR(test = as.SingleCellExperiment(dry2_70), ref = Mim_ref, assay.type.test=1,
+    labels = Mim_ref$label.main,clusters = Idents(dry2_70),de.method="wilcox")
+score.dry_im<-pruneScores(pred.dry_im,nmads=2,min.diff.med=0.2)
+
+for (i in 1:nrow(pred.dry_im)){
+  if(score.dry_im[i]==FALSE){
+    pred.dry_im$labels[i]<-pred.dry_im$labels[i]
+  } else { pred.dry_im$labels[i]<-"NA"
+  }
+}
+
+
+  new_id_clusters=Idents(dry2_70)
+for (i in 1:nrow(pred.dry_im)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.dry_im)[i], pred.dry_im$labels[i]) 
+}
+
+
+dry2_70@meta.data$singler_im<-new_id_clusters
+
+```
+
+```{r, include=FALSE, message=FALSE }
+p_mouse<-DimPlot(dry2_70, reduction = "umap", group.by = "singler_mouse")
+p_im<-DimPlot(dry2_70, reduction = "umap", group.by = "singler_im")
+
+plot_grid( p3,p_mouse,p_im)
+
+```
+
+
+
+### Adipocyte differenciation markers
+
+```{r feature plot markers adipo dry, echo=FALSE}
+FeaturePlot(dry2_70, features = c("Pparg","Igf1","Tgfbi","Tgfb3","Sparc","Angptl4","Pex5l"), pt.size = 0.3, 
+    ncol = 3)
+```
+
+
+### Pseudo-time analysis
+
+```{r pseudotime dry, echo=FALSE, message=FALSE, warning=FALSE }
+dry2_70.cds <- as.cell_data_set(dry2_70)
+dry2_70.cds<- cluster_cells(cds = dry2_70.cds, reduction_method = "UMAP",resolution = 0.005)
+
+dry2_70.cds <- learn_graph(dry2_70.cds, use_partition = TRUE)
+
+plot_cells(dry2_70.cds,
+           color_cells_by = "cluster",
+           label_groups_by_cluster=FALSE,
+           label_leaves=TRUE,
+           label_branch_points=TRUE)
+
+dry2_70.cds <- order_cells(dry2_70.cds, root_pr_nodes=get_earliest_principal_node(dry2_70.cds,3),reduction_method = "UMAP")
+plot_cells(
+  cds = dry2_70.cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE
+)
+```
+
+
+### Cell type Identification
+ 
+ - 0 : Mature adipocyte
+ - 1 : Fibroblast ( pre-adipocyte)
+ - 2 : Macrophage 
+ - 3 : Unknown (Dao high)
+ - 4 : Endothelial cell 
+ 
+
+```{r dry cell type id, echo=FALSE}
+#Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+new.cluster.ids <- c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage","Precursor (Dao)","Endothelial cell")
+
+names(new.cluster.ids) <- levels(dry2_70)
+dry2_70<- RenameIdents(dry2_70, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(dry2_70),Colours$Cell_types),2])
+p_dry2_70<-DimPlot(dry2_70, reduction = "umap",  pt.size = 0.7,repel = TRUE,cols = pal ) 
+p_dry2_70
+
+```

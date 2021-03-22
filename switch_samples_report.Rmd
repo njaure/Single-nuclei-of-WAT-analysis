@@ -1,0 +1,688 @@
+---
+title: "Single-nuclei analysis of white adipose tissue : Switches Samples report"
+author: "Nathalie"
+date: "8/3/2021"
+output: html_document
+---
+
+```{r packages, include = FALSE}
+library(Seurat)
+library(ggplot2)
+library(cowplot)
+library(patchwork)
+library(ggpubr)
+library(viridis)
+library(ggsci)
+library('SingleR')
+library('celldex')
+library('SingleCellExperiment')
+library(pheatmap)
+library(scran)
+library(stringr)
+library(monocle3)
+library(SeuratWrappers)
+```
+
+```{r function, include = FALSE}
+get_earliest_principal_node <- function(cds, ident){
+  cell_ids <- which(colData(cds)[, "ident"] == ident)
+  
+  closest_vertex <-
+  cds@principal_graph_aux[["UMAP"]]$pr_graph_cell_proj_closest_vertex
+  closest_vertex <- as.matrix(closest_vertex[colnames(cds), ])
+  root_pr_nodes <-
+  igraph::V(principal_graph(cds)[["UMAP"]])$name[as.numeric(names
+  (which.max(table(closest_vertex[cell_ids,]))))]
+  
+  root_pr_nodes
+}
+
+Mrna_ref<-MouseRNAseqData()
+
+Mim_ref<-ImmGenData()
+
+```
+
+```{r color palette, message=FALSE, warning=FALSE, paged.print=FALSE}
+Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+mypal=c("#D04F55","#2194EC","#E8CA5D","#35A984","#E88159","#7D6AC8","#3F826D","#F3E598","#E4A278","#7BB0A8","#8BA87C","#ADC2C1")
+Colours=data.frame(Cell_types,mypal)
+
+```
+
+
+- List of samples :
+  - Aldr16 : batch2, medium quality (aldr16_35)
+  - Aldr16 2 : batch 3, good quality (aldr16_08)
+  - Aldr20  : bacth 2 , bad quality (dro_72)
+  - Aldr20 2 : batch 3, good quality (dro2_07)
+
+***  
+
+## ALDR 16 (35)
+
+```{r load aldr16_35,message=FALSE,warning=FALSE, echo = FALSE}
+aldr16_35.data <- Read10X(data.dir="/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/35_aldr16/Solo.out/GeneFull/raw/")
+
+aldr16_35 <- CreateSeuratObject(counts = aldr16_35.data, project = "aldr16_35", min.cells = 10, min.features = 80)
+aldr16_35@meta.data$batch <- "batch_1"
+aldr16_35@meta.data$diet<- "aldr16"
+aldr16_35@meta.data$age <- "switch"
+aldr16_35
+```
+
+- 1425 features across 555 samples after first filtering of taking features across minimum 10 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality aldr16, echo = FALSE}
+aldr16_35[["percent.rp"]] <- PercentageFeatureSet(aldr16_35, pattern = "^Rp")
+aldr16_35[["percent.mt"]] <- PercentageFeatureSet(aldr16_35, pattern = "^mt-")
+VlnPlot(aldr16_35, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+
+```
+
+```{r plot quality 2 aldr16,echo = FALSE}
+FeatureScatter(aldr16_35, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+- no big abnormality detected, filtering on 50<x<220,mt<2, rp<1
+
+```{r filtering2 aldr16, message=FALSE, warning=FALSE,echo = FALSE}
+aldr16_35 <- subset(aldr16_35, subset = nFeature_RNA > 50 & nFeature_RNA < 500 & nCount_RNA < 800 & percent.mt < 2 & percent.rp < 1)
+
+```
+
+- 1425 features across 529 samples after second filtering. 
+
+### Normalisation
+
+```{r sctransform aldr16,message=FALSE, warning=FALSE}
+# run sctransform
+aldr16_35 <- SCTransform(aldr16_35, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+aldr16_35
+```
+
+
+***
+
+## ALDR16 2 (08)
+
+
+```{r load aldr162_06,message=FALSE,warning=FALSE, echo = FALSE}
+aldr162_08.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/08_aldr162/A006200124_137508_S13_L00Solo.out/GeneFull/raw/")
+
+aldr162_08 <- CreateSeuratObject(counts = aldr162_08.data, project = "aldr16_2", min.cells = 10, min.features = 80)
+aldr162_08@meta.data$batch <- "batch_3"
+aldr162_08@meta.data$diet <- "aldr16"
+aldr162_08@meta.data$batch <- "switch"
+aldr162_08
+```
+
+- 5762 features across 1839 samples after first filtering of taking features across minimum 10 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality aldr162, message=FALSE,warning=FALSE, echo = FALSE}
+aldr162_08[["percent.rp"]] <- PercentageFeatureSet(aldr162_08, pattern = "^Rp-")
+aldr162_08[["percent.mt"]] <- PercentageFeatureSet(aldr162_08, pattern = "^mt-")
+VlnPlot(aldr162_08, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+```
+
+
+```{r plot quality 2 aldr162,echo = FALSE}
+FeatureScatter(aldr162_08, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+
+```{r filtering2 aldr162, message=FALSE, warning=FALSE}
+aldr162_08 <- subset(aldr162_08, subset = nFeature_RNA > 50 & nFeature_RNA < 600 & nCount_RNA < 900 & percent.mt < 1 & percent.rp < 1)
+
+```
+
+- 5762 features across 1808 samples after second filtering, removing cells with not enough features.
+
+### Normalisation
+
+```{r sctransform aldr162,message=FALSE, warning=FALSE}
+# run sctransform
+aldr162_08 <- SCTransform(aldr162_08, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+aldr162_08
+```
+
+***
+<br>
+***
+
+### Merging
+
+```{r merging aldr16,message=FALSE, warning=FALSE, echo = FALSE}
+aldr16_data<-list(aldr162_08,aldr16_35)
+aldr16_features <- SelectIntegrationFeatures(object.list = aldr16_data, nfeatures = 5000)
+aldr16_list <- PrepSCTIntegration(object.list = aldr16_data, anchor.features = aldr16_features, 
+    verbose = FALSE)
+aldr16_anchors <- FindIntegrationAnchors(object.list = aldr16_list, normalization.method = "SCT", 
+    anchor.features = aldr16_features)
+aldr16_combined.sct <- IntegrateData(anchorset = aldr16_anchors, normalization.method = "SCT")
+
+aldr16_combined.sct <- RunPCA(aldr16_combined.sct, verbose = FALSE)
+aldr16_combined.sct <- RunUMAP(aldr16_combined.sct, reduction = "pca", dims = 1:30)
+```
+
+- 12910 features across 2292 samples after merging.
+
+```{r}
+dim(aldr16_combined.sct)
+```
+
+
+```{r umap plot aldr16, echo = FALSE}
+p1<-DimPlot(aldr16_combined.sct, reduction = "umap", group.by = "orig.ident")
+p1
+```
+
+
+### Clustering
+
+```{r clustering aldr16, echo = FALSE}
+aldr16_combined.sct <- FindNeighbors(aldr16_combined.sct, reduction = "pca", dims = 1:30)
+aldr16_combined.sct <- FindClusters(aldr16_combined.sct, resolution = 0.6)
+p3 <- DimPlot(aldr16_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r umap per quality criteria aldr16, echo = FALSE}
+FeaturePlot(aldr16_combined.sct,features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"))
+```
+
+### Gene Markers
+
+
+```{r}
+aldr16_combined.sct
+DefaultAssay(aldr16_combined.sct)<-"SCT"
+dim(aldr16_combined.sct)
+```
+
+```{r topmarker aldr16, echo = FALSE, warning=FALSE, message=FALSE}
+all.markers_aldr16=FindAllMarkers(aldr16_combined.sct,only.pos = TRUE, min.pct = 0.3, logfc.threshold = 0.2,min.cells.feature = 50,test.use = "t")
+
+top_features_aldr16=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_aldr16$cluster))){
+  if (nrow(all.markers_aldr16[all.markers_aldr16$cluster==i,])>10 ){
+     temp= all.markers_aldr16[all.markers_aldr16$cluster==i,"gene"][1:2]
+      top_features_aldr16<-c(top_features_aldr16,temp)
+  }else {
+    temp= all.markers_aldr16[all.markers_aldr16$cluster==i,"gene"][1:2]
+      top_features_aldr16<-c(top_features_aldr16,temp)
+    
+  }
+
+
+}
+
+VlnPlot(aldr16_combined.sct, features = top_features_aldr16, 
+    pt.size = 0.2, stack=TRUE)
+
+
+```
+
+
+
+```{r feature plot aldr16, echo = FALSE, warning=FALSE}
+FeaturePlot(aldr16_combined.sct, features = top_features_aldr16, pt.size = 0.2, 
+    ncol = 3)
+```
+
+
+```{r heatmap aldr16, echo = FALSE, warning=FALSE, message=FALSE}
+
+top_features_aldr16=vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_aldr16$cluster))){
+  if (nrow(all.markers_aldr16[all.markers_aldr16$cluster==i,])>10 ){
+     temp= all.markers_aldr16[all.markers_aldr16$cluster==i,"gene"][1:6]
+      top_features_aldr16<-c(top_features_aldr16,temp)
+  }else {
+    temp= all.markers_aldr16[all.markers_aldr16$cluster==i,"gene"][1:nrow(all.markers_aldr16[all.markers_aldr16$cluster==i,])]
+      top_features_aldr16<-c(top_features_aldr16,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(aldr16_combined.sct,group.by = "ident",features =top_features_aldr16)+ scale_fill_viridis()
+```
+
+### Cell type identification
+
+#### Single R (automated assignement)
+
+```{r setup aldr16, include=FALSE, message=FALSE }
+
+pred.aldr16_mouse <- SingleR(test = as.SingleCellExperiment(aldr16_combined.sct), ref = Mrna_ref, assay.type.test=1,
+    labels = Mrna_ref$label.main,clusters = Idents(aldr16_combined.sct),de.method="wilcox")
+
+score.aldr16_mouse<-pruneScores(pred.aldr16_mouse,nmads=2,min.diff.med=0.2)
+for (i in 1:nrow(pred.aldr16_mouse)){
+  if(score.aldr16_mouse[i]==FALSE){
+    pred.aldr16_mouse$labels[i]<-pred.aldr16_mouse$labels[i]
+  } else { pred.aldr16_mouse$labels[i]<-"NA"
+  }
+}
+
+  new_id_clusters=Idents(aldr16_combined.sct)
+for (i in 1:nrow(pred.aldr16_mouse)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aldr16_mouse)[i], pred.aldr16_mouse$labels[i]) 
+}
+
+
+aldr16_combined.sct@meta.data$singler_mouse<-new_id_clusters
+```
+
+
+
+```{r setup aldr16 im , include=FALSE, message=FALSE}
+
+
+pred.aldr16_im <- SingleR(test = as.SingleCellExperiment(aldr16_combined.sct), ref = Mim_ref, assay.type.test=1,
+    labels = Mim_ref$label.main,clusters = Idents(aldr16_combined.sct),de.method="wilcox")
+score.aldr16_im<-pruneScores(pred.aldr16_im,nmads=2,min.diff.med=0.1)
+
+for (i in 1:nrow(pred.aldr16_im)){
+  if(score.aldr16_im[i]==FALSE){
+    pred.aldr16_im$labels[i]<-pred.aldr16_im$labels[i]
+  } else { pred.aldr16_im$labels[i]<-"NA"
+  }
+}
+
+
+  new_id_clusters=Idents(aldr16_combined.sct)
+for (i in 1:nrow(pred.aldr16_im)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aldr16_im)[i], pred.aldr16_im$labels[i]) 
+}
+
+
+aldr16_combined.sct@meta.data$singler_im<-new_id_clusters
+
+```
+
+```{r, include=FALSE, message=FALSE }
+p_mouse<-DimPlot(aldr16_combined.sct, reduction = "umap", group.by = "singler_mouse")
+p_im<-DimPlot(aldr16_combined.sct, reduction = "umap", group.by = "singler_im")
+
+plot_grid( p3,p_mouse,p_im)
+
+```
+
+### Adipocyte differenciation markers
+
+```{r feature plot markers adipo, echo=FALSE}
+FeaturePlot(aldr16_combined.sct, features = c("Pparg","Igf1","Tgfbi","Tgfb3","Sparc","Angptl4","Pex5l"), pt.size = 0.3, 
+    ncol = 3)
+```
+
+### Pseudo-time analdr16sis
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE }
+aldr16_combined.sct.cds <- as.cell_data_set(aldr16_combined.sct)
+aldr16_combined.sct.cds<- cluster_cells(cds = aldr16_combined.sct.cds, reduction_method = "UMAP",resolution = 0.005)
+
+aldr16_combined.sct.cds <- learn_graph(aldr16_combined.sct.cds, use_partition = TRUE)
+
+plot_cells(aldr16_combined.sct.cds,
+           color_cells_by = "cluster",
+           label_groups_by_cluster=FALSE,
+           label_leaves=TRUE,
+           label_branch_points=TRUE)
+
+aldr16_combined.sct.cds <- order_cells(aldr16_combined.sct.cds, root_pr_nodes=get_earliest_principal_node(aldr16_combined.sct.cds,0),reduction_method = "UMAP")
+plot_cells(
+  cds = aldr16_combined.sct.cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE
+)
+```
+
+### Cell type Identification
+ 
+ - 0 : Mature adipocyte
+ - 1 : Fibroblast ( pre-adipocyte)
+ - 2 : Mature adipocyte (acaca)
+ - 3 : Macrophages
+ - 4 : Unknown (Dao)
+ - 5 : Endothelial cell
+
+```{r aldr16 cell type id, echo=FALSE}
+#Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+new.cluster.ids <- c("Mature adipocyte", "Pre-adipocyte 1 (Tshz2)","Mature adipocyte (acaca)","Macrophage","Precursor (Dao)","Endothelial cell")
+
+names(new.cluster.ids) <- levels(aldr16_combined.sct)
+aldr16_combined.sct<- RenameIdents(aldr16_combined.sct, new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(aldr16_combined.sct),Colours$Cell_types),2])
+p_aldr16_combined.sct<-DimPlot(aldr16_combined.sct, reduction = "umap", cols=pal, pt.size = 0.5,repel = TRUE ) 
+p_aldr16_combined.sct
+
+```
+
+***
+
+***  
+
+## ALDR20  (36)
+
+```{r load aldr20_36,message=FALSE,warning=FALSE, echo = FALSE}
+aldr20_36.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/36_aldr20/Solo.out/GeneFull/raw/")
+
+aldr20_36 <- CreateSeuratObject(counts = aldr20_36.data, project = "aldr20", min.cells = 10, min.features = 80)
+aldr20_36@meta.data$batch <- "batch_1"
+aldr20_36@meta.data$diet<- "aldr20"
+aldr20_36@meta.data$age <- "old"
+aldr20_36
+```
+
+- 424 features across 237 samples after first filtering of taking features across minimum 10 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality aldr20, echo = FALSE}
+aldr20_36[["percent.rp"]] <- PercentageFeatureSet(aldr20_36, pattern = "^Rp")
+aldr20_36[["percent.mt"]] <- PercentageFeatureSet(aldr20_36, pattern = "^mt-")
+VlnPlot(aldr20_36, features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+
+```
+
+```{r plot quality 2 aldr20,echo = FALSE}
+FeatureScatter(aldr20_36, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+- no big abnormality detected, filtering on 50<x<220,mt<2, rp<1
+
+```{r filtering2 aldr20, message=FALSE, warning=FALSE,echo = FALSE}
+aldr20_36 <- subset(aldr20_36, subset = nFeature_RNA > 50 & nFeature_RNA < 500 & nCount_RNA < 1000 & percent.mt < 2 & percent.rp < 1)
+
+```
+
+- 424 features across 146 samples after second filtering. 
+
+### Normalisation
+
+```{r sctransform aldr20,message=FALSE, warning=FALSE}
+# run sctransform
+aldr20_36 <- SCTransform(aldr20_36, vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+aldr20_36
+```
+
+- non usable
+
+***
+
+## ALDR20 2 (9)
+
+
+```{r load aldr20 2_06,message=FALSE,warning=FALSE, echo = FALSE}
+aldr202_09.data <- Read10X(data.dir = "/Users/njaure/Documents/Main_thesis_project/10X_full_experiment_10.20/comp_data_10.20/09_aldr202/A006200124_137509_S14_L00Solo.out/GeneFull/raw/")
+
+aldr202_09 <- CreateSeuratObject(counts = aldr202_09.data, project = "aldr_2", min.cells = 10, min.features = 80)
+aldr202_09@meta.data$batch <- "batch_3"
+aldr202_09@meta.data$diet <- "aldr20"
+aldr202_09@meta.data$age <- "old"
+aldr202_09
+```
+
+- 6026 features across 1870 samples after first filtering of taking features across minimum 10 cells, and cells minimum 80 features. 
+
+### Quality assessment
+
+```{r plot quality aldr20 2, message=FALSE,warning=FALSE, echo = FALSE}
+aldr202_09 [["percent.rp"]] <- PercentageFeatureSet(aldr202_09 , pattern = "^Rp-")
+aldr202_09 [["percent.mt"]] <- PercentageFeatureSet(aldr202_09 , pattern = "^mt-")
+VlnPlot(aldr202_09 , features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"), ncol = 4)
+```
+
+
+```{r plot quality 2 aldr20 2,echo = FALSE}
+FeatureScatter(aldr202_09 , feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+
+```
+
+
+```{r filtering2 aldr20 2, message=FALSE, warning=FALSE}
+aldr202_09  <- subset(aldr202_09 , subset = nFeature_RNA > 50 & nFeature_RNA < 750 & nCount_RNA < 1000 & percent.mt < 1 & percent.rp < 1)
+
+```
+
+- 6026 features across 1854 samples after second filtering, removing cells with not enough features.
+
+### Normalisation
+
+```{r sctransform aldr20 2,message=FALSE, warning=FALSE}
+# run sctransform
+aldr202_09  <- SCTransform(aldr202_09 , vars.to.regress = c("percent.mt","percent.rp"), verbose = FALSE)
+aldr202_09 
+```
+
+***
+<br>
+***
+
+### Dimension reduction
+
+```{r merging aldr20 ,message=FALSE, warning=FALSE, echo = FALSE}
+
+aldr202_09  <- RunPCA(aldr202_09 , verbose = FALSE)
+aldr202_09  <- RunUMAP(aldr202_09 , reduction = "pca", dims = 1:30)
+```
+
+- 12910 features across 2292 samples after merging.
+
+```{r}
+dim(aldr202_09 )
+```
+
+
+```{r umap plot aldr20 , echo = FALSE}
+p1<-DimPlot(aldr202_09 , reduction = "umap", group.by = "orig.ident")
+p1
+```
+
+### Clustering
+
+```{r clustering aldr20 , echo = FALSE}
+aldr202_09  <- FindNeighbors(aldr202_09 , reduction = "pca", dims = 1:30)
+aldr202_09  <- FindClusters(aldr202_09 , resolution = 0.6)
+p3 <- DimPlot(aldr202_09 , reduction = "umap")
+plot_grid( p1,p3)
+```
+
+```{r umap per quality criteria aldr20 , echo = FALSE}
+FeaturePlot(aldr202_09 ,features = c("nFeature_RNA", "nCount_RNA","percent.mt","percent.rp"))
+```
+
+### Gene Markers
+
+
+```{r}
+aldr202_09 
+DefaultAssay(aldr202_09 )<-"SCT"
+dim(aldr202_09 )
+```
+
+```{r topmarker aldr20 , echo = FALSE, warning=FALSE, message=FALSE}
+all.markers_aldr20 =FindAllMarkers(aldr202_09 ,only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.2,min.cells.feature = 40,test.use = "t")
+
+top_features_aldr20 =vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_aldr20 $cluster))){
+  if (nrow(all.markers_aldr20 [all.markers_aldr20 $cluster==i,])>10 ){
+     temp= all.markers_aldr20 [all.markers_aldr20 $cluster==i,"gene"][1:2]
+      top_features_aldr20 <-c(top_features_aldr20 ,temp)
+  }else {
+    temp= all.markers_aldr20 [all.markers_aldr20 $cluster==i,"gene"][1:2]
+      top_features_aldr20 <-c(top_features_aldr20 ,temp)
+    
+  }
+
+
+}
+
+VlnPlot(aldr202_09 , features = top_features_aldr20 , 
+    pt.size = 0.2, stack=TRUE)
+
+
+```
+
+```{r feature plot aldr20 , echo = FALSE, warning=FALSE}
+FeaturePlot(aldr202_09 , features = top_features_aldr20 , pt.size = 0.2, 
+    ncol = 3)
+```
+
+
+```{r heatmap aldr20 , echo = FALSE, warning=FALSE, message=FALSE}
+
+top_features_aldr20 =vector()
+temp=vector()
+for ( i in 0:length(unique(all.markers_aldr20 $cluster))){
+  if (nrow(all.markers_aldr20 [all.markers_aldr20 $cluster==i,])>10 ){
+     temp= all.markers_aldr20 [all.markers_aldr20 $cluster==i,"gene"][1:6]
+      top_features_aldr20 <-c(top_features_aldr20 ,temp)
+  }else {
+    temp= all.markers_aldr20 [all.markers_aldr20 $cluster==i,"gene"][1:nrow(all.markers_aldr20 [all.markers_aldr20 $cluster==i,])]
+      top_features_aldr20 <-c(top_features_aldr20 ,temp)
+    
+  }
+
+
+}
+
+
+DoHeatmap(aldr202_09 ,group.by = "ident",features =top_features_aldr20 )+ scale_fill_viridis()
+```
+
+### Cell type identification
+
+#### Single R (automated assignement)
+
+```{r setup aldr20 , include=FALSE, message=FALSE }
+
+pred.aldr20_mouse <- SingleR(test = as.SingleCellExperiment(aldr202_09 ), ref = Mrna_ref, assay.type.test=1,
+    labels = Mrna_ref$label.main,clusters = Idents(aldr202_09 ),de.method="wilcox")
+
+score.aldr20_mouse<-pruneScores(pred.aldr20_mouse,nmads=2,min.diff.med=0.2)
+for (i in 1:nrow(pred.aldr20_mouse)){
+  if(score.aldr20_mouse[i]==FALSE){
+    pred.aldr20_mouse$labels[i]<-pred.aldr20_mouse$labels[i]
+  } else { pred.aldr20_mouse$labels[i]<-"NA"
+  }
+}
+
+  new_id_clusters=Idents(aldr202_09 )
+for (i in 1:nrow(pred.aldr20_mouse)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aldr20_mouse)[i], pred.aldr20_mouse$labels[i]) 
+}
+
+
+aldr202_09@meta.data$singler_mouse<-new_id_clusters
+```
+
+
+
+```{r setup aldr20  im , include=FALSE, message=FALSE}
+
+
+pred.aldr20_im <- SingleR(test = as.SingleCellExperiment(aldr202_09 ), ref = Mim_ref, assay.type.test=1,
+    labels = Mim_ref$label.main,clusters = Idents(aldr202_09 ),de.method="wilcox")
+score.aldr20_im<-pruneScores(pred.aldr20_im,nmads=2,min.diff.med=0.1)
+
+for (i in 1:nrow(pred.aldr20_im)){
+  if(score.aldr20_im[i]==FALSE){
+    pred.aldr20_im$labels[i]<-pred.aldr20_im$labels[i]
+  } else { pred.aldr20_im$labels[i]<-"NA"
+  }
+}
+
+
+  new_id_clusters=Idents(aldr202_09 )
+for (i in 1:nrow(pred.aldr20_im)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aldr20_im)[i], pred.aldr20_im$labels[i]) 
+}
+
+
+aldr202_09@meta.data$singler_im<-new_id_clusters
+
+```
+
+```{r, include=FALSE, message=FALSE }
+p_mouse<-DimPlot(aldr202_09 , reduction = "umap", group.by = "singler_mouse")
+p_im<-DimPlot(aldr202_09 , reduction = "umap", group.by = "singler_im")
+
+plot_grid( p3,p_mouse,p_im)
+
+```
+
+### Adipocyte differenciation markers
+
+```{r feature plot markers adipo aldr20, echo=FALSE}
+FeaturePlot(aldr202_09 , features = c("Pparg","Igf1","Tgfbi","Tgfb3","Sparc","Angptl4","Pex5l"), pt.size = 0.3, 
+    ncol = 3)
+```
+
+### Pseudo-time analdr20 sis
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE }
+aldr202_09.cds <- as.cell_data_set(aldr202_09 )
+aldr202_09.cds<- cluster_cells(cds = aldr202_09.cds, reduction_method = "UMAP",resolution = 0.005)
+
+aldr202_09.cds <- learn_graph(aldr202_09.cds, use_partition = TRUE)
+
+plot_cells(aldr202_09.cds,
+           color_cells_by = "cluster",
+           label_groups_by_cluster=FALSE,
+           label_leaves=TRUE,
+           label_branch_points=TRUE)
+
+aldr202_09.cds <- order_cells(aldr202_09.cds, root_pr_nodes=get_earliest_principal_node(aldr202_09.cds,4),reduction_method = "UMAP")
+plot_cells(
+  cds = aldr202_09.cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE
+)
+```
+
+
+```{r}
+p3
+```
+
+### Cell type Identification
+ 
+ - 0 : Fibroblast ( pre-adipocyte)
+ - 1 : Mature adipocyte
+ - 2 : Macrophage
+ - 3 : Lymphocyte
+ - 4 : Unknown (Dao)
+ - 5 : Endothelial cell
+
+
+```{r aldr20  cell type id, echo=FALSE}
+#Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+new.cluster.ids <- c("Pre-adipocyte 1 (Tshz2)","Mature adipocyte", "Macrophage","Lymphocyte","Precursor (Dao)","Endothelial cell")
+
+names(new.cluster.ids) <- levels(aldr202_09 )
+aldr202_09 <- RenameIdents(aldr202_09 , new.cluster.ids)
+
+pal=as.vector(Colours[match(levels(aldr202_09),Colours$Cell_types),2])
+p_aldr202_09 <-DimPlot(aldr202_09 , reduction = "umap", cols=pal, pt.size = 0.5,repel = TRUE ) 
+p_aldr202_09 
+
+```

@@ -1,0 +1,119 @@
+---
+title: "Single R test"
+author: "Nathalie"
+date: "3/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library('SingleR')
+library('Seurat')
+library('celldex')
+library('SingleCellExperiment')
+library(viridis)
+library(pheatmap)
+```
+
+```{r setup, include=FALSE}
+Mrna_ref<-MouseRNAseqData()
+
+pred.aldr16_35 <- SingleR(test = as.SingleCellExperiment(aldr16_35), ref = Mrna_ref, assay.type.test=2,
+    labels = Mrna_ref$label.main)
+table(pred.aldr16_35$labels)
+```
+
+```{r setup, include=FALSE}
+Mim_ref<-ImmGenData()
+
+pred.aldr16_35_im <- SingleR(test = as.SingleCellExperiment(aldr16_35), ref = Mim_ref, assay.type.test=2,
+    labels = Mim_ref$label.main)
+table(pred.aldr16_35_im$labels)
+```
+
+```{r}
+plotScoreHeatmap(pred.aldr16_35)
+```
+
+
+```{r}
+plotScoreHeatmap(pred.aldr16_35_im)
+
+
+```
+
+
+
+
+
+
+```{r}
+aldr16_35@meta.data$singler_im<-pred.aldr16_35_im$labels
+
+aldr16_35@meta.data$singler_mrna<-pred.aldr16_35$labels
+```
+
+#Brain dataset
+
+```{r}
+pred.aldr16_b <- SingleR(test = as.SingleCellExperiment(aldr16_combined.sct), ref = Mrna_ref, assay.type.test=1,
+    labels = Mrna_ref$label.fine,clusters = Idents(aldr16_combined.sct))
+table(pred.aldr16_b$labels)
+
+id_clusters=Idents(aldr16_combined.sct)
+plotScoreHeatmap(pred.aldr16_b)
+
+  new_id_clusters=id_clusters
+for (i in 1:nrow(pred.aldr16_b)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aldr16_b)[i], pred.aldr16_b$labels[i]) 
+}
+
+
+aldr16_combined.sct@meta.data$singler_mrna<-new_id_clusters
+ 
+
+```
+
+```{r}
+p2<-DimPlot(aldr16_combined.sct, reduction = "umap", group.by = "singler_mrna")
+p1<-DimPlot(aldr16_combined.sct, reduction = "umap")
+```
+
+# Immune dataset
+
+```{r}
+pred.aldr16_i <- SingleR(test = as.SingleCellExperiment(aldr16_combined.sct), ref = Mim_ref, assay.type.test=1,
+    labels = Mim_ref$label.fine,clusters = Idents(aldr16_combined.sct))
+table(pred.aldr16_i$labels)
+plotScoreHeatmap(pred.aldr16_b)
+
+id_clusters=Idents(aldr16_combined.sct)
+
+
+  new_id_clusters=id_clusters
+for (i in 1:nrow(pred.aldr16_i)){
+  new_id_clusters<-str_replace_all(new_id_clusters, rownames(pred.aldr16_i)[i], pred.aldr16_i$labels[i]) 
+}
+
+
+aldr16_combined.sct@meta.data$singler_mim<-new_id_clusters
+ 
+```
+
+```{r}
+p3<-DimPlot(aldr16_combined.sct, reduction = "umap", group.by = "singler_mim")
+
+plot_grid( p1,p2,p3)
+```
+
+```{r}
+plotDeltaDistribution(pred.aldr16_b, ncol = 3)
+
+all.markers <- metadata(pred.aldr16_b)$de.genes
+aldr16_combined.sct@meta.data$singler_mim<-pred.aldr16_i$labels
+
+plotHeatmap(aldr16_combined.sct, order_columns_by="labels",
+    features=unique(unlist(all.markers$beta))) 
+```
+
+
+
