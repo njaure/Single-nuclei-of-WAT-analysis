@@ -1,0 +1,214 @@
+---
+title: "All_samples_analysis"
+author: "Nathalie"
+date: "3/4/2021"
+output: html_document
+---
+
+```{r}
+library(reshape2)
+library(dplyr)
+library(plyr)
+```
+
+
+```{r setup, include=FALSE}
+nrow(aldr162_08@meta.data)
+length(aldr162_08@assays$RNA@counts@Dimnames[[1]])
+```
+```{r}
+sample_color=c("#5BC0EB","#1993C8","#377495","#28536B","#E48062","#C04621","#AF0E08","#750906","#FFC15E","#CC7E00","#5CC163","#328538")
+names(sample_color)<-rep(c("AL young", "AL old", "DR young", "DR old", "ALDR 16", "ALDR 20"), each=2)
+```
+
+
+## Plot of number nuclei per sample
+
+```{r}
+all_samples_data<-data.frame(replicate=rep(c("replicate 1","replicate 2 "), length.out=12),condition=rep(c("AL young", "AL old", "DR young", "DR old", "ALDR 16", "ALDR 20"), each=2),cell_number=as.numeric(c(nrow(aly_37@meta.data),nrow(aly2_69@meta.data),nrow(alo_71@meta.data),nrow(alo2_06@meta.data),nrow(dry_38@meta.data),nrow(dry2_70@meta.data),nrow(dro_72@meta.data),nrow(dro2_07@meta.data),nrow(aldr16_35@meta.data),nrow(aldr162_08@meta.data),nrow(aldr20_36@meta.data),nrow(aldr202_09@meta.data))))
+
+all_samples_data_sum <- ddply(all_samples_data, "condition",
+                   transform, label_ypos=cumsum(cell_number))
+
+ggplot(data=all_samples_data_sum, aes(x=condition, y=cell_number, fill=replicate)) +
+  geom_bar(stat="identity")+geom_text(aes(label = stat(y), group = condition), 
+    stat = 'summary', fun = sum, vjust = -0.7)+scale_fill_manual(values=sample_color)+
+  theme_minimal()
+
+qplot(condition,data=all_samples_data_sum,geom='bar',weight=cell_number, fill=replicate)+scale_fill_manual(values=sample_color)
+```
+
+```{r}
+
+sample_color=c("#28536B","#1993C8","#CC7E00", "#328538","#750906","#C04621")
+
+ggplot(data=all_samples_data_sum, aes(x=condition, y=cell_number)) +
+  geom_bar(stat="identity", aes(fill=condition,alpha=factor(replicate)),position='stack')+scale_alpha_manual(values = c(0.5, 1))+facet_grid(. ~ condition,scales = 'free')+theme_bw() + theme( strip.background  = element_blank(),
+                      panel.grid.major = element_blank(),
+                      panel.border = element_blank(),
+                      axis.ticks = element_blank(),
+                      panel.grid.minor.x=element_blank(),
+                      panel.grid.major.x=element_blank(),axis.text.x = element_blank(),
+        axis.ticks.x = element_blank() ) +
+  theme(legend.position="bottom")+scale_fill_manual(values= sample_color,aesthetics = "fill")
+```
+
+
+
+
+```{r}
+all_samples_data_feat<-data.frame(replicate=rep(c("replicate 1","replicate 2 "), length.out=12),condition=rep(c("AL young", "AL old", "DR young", "DR old", "ALDR 16", "ALDR 20"), each=2),feature_number=as.numeric(c(length(aly_37@assays$RNA@counts@Dimnames[[1]]),length(aly2_69@assays$RNA@counts@Dimnames[[1]]),length(alo_71@assays$RNA@counts@Dimnames[[1]]),length(alo2_06@assays$RNA@counts@Dimnames[[1]]),length(dry_38@assays$RNA@counts@Dimnames[[1]]),length(dry2_70@assays$RNA@counts@Dimnames[[1]]),length(dro_72@assays$RNA@counts@Dimnames[[1]]),length(dro2_07@assays$RNA@counts@Dimnames[[1]]),length(aldr16_35@assays$RNA@counts@Dimnames[[1]]),length(aldr162_08@assays$RNA@counts@Dimnames[[1]]),length(aldr20_36@assays$RNA@counts@Dimnames[[1]]),length(aldr202_09@assays$RNA@counts@Dimnames[[1]]))))
+
+ggplot(data=all_samples_data_feat, aes(x=condition, y=feature_number)) +
+  geom_bar(stat="identity", aes(fill=condition,alpha=factor(replicate)),position='dodge')+scale_alpha_manual(values = c(0.5, 1))+facet_grid(. ~ condition,scales = 'free')+theme_bw() + theme( strip.background  = element_blank(),
+                      panel.grid.major = element_blank(),
+                      panel.border = element_blank(),
+                      axis.ticks = element_blank(),
+                      panel.grid.minor.x=element_blank(),
+                      panel.grid.major.x=element_blank(),axis.text.x = element_blank(),
+        axis.ticks.x = element_blank() ) +
+  theme(legend.position="bottom")+scale_fill_manual(values= sample_color,aesthetics = "fill")
+
+```
+
+```{r}
+all_samples_data_feat<-data.frame(replicate=rep(c("replicate 1","replicate 2 "), length.out=12),condition=rep(c("AL young", "AL old", "DR young", "DR old", "ALDR 16", "ALDR 20"), each=2),feature_number=as.numeric(c(length(aly_37@assays$SCT@counts@Dimnames[[1]]),length(aly2_69@assays$RNA@counts@Dimnames[[1]]),length(alo_71@assays$RNA@counts@Dimnames[[1]]),length(alo2_06@assays$RNA@counts@Dimnames[[1]]),length(dry_38@assays$RNA@counts@Dimnames[[1]]),length(dry2_70@assays$RNA@counts@Dimnames[[1]]),length(dro_72@assays$RNA@counts@Dimnames[[1]]),length(dro2_07@assays$RNA@counts@Dimnames[[1]]),length(aldr16_35@assays$RNA@counts@Dimnames[[1]]),length(aldr162_08@assays$RNA@counts@Dimnames[[1]]),length(aldr20_36@assays$RNA@counts@Dimnames[[1]]),length(aldr202_09@assays$RNA@counts@Dimnames[[1]]))))
+
+sample_color=c("#1993C8","#28536B","#C04621","#750906","#CC7E00","#328538")
+
+ggplot(data=all_samples_data_feat, aes(x=condition, y=cell_number)) +
+  geom_bar(stat="identity", aes(fill=condition,alpha=factor(replicate)),position='dodge')+scale_alpha_manual(values = c(0.5, 1))+facet_grid(. ~ condition,scales = 'free')+theme_bw() + theme( strip.background  = element_blank(),
+                      panel.grid.major = element_line(colour = "grey80"),
+                      panel.border = element_blank(),
+                      axis.ticks = element_blank(),
+                      panel.grid.minor.x=element_blank(),
+                      panel.grid.major.x=element_blank(),axis.text.x = element_blank(),
+        axis.ticks.x = element_blank() ) +
+  theme(legend.position="bottom")+scale_fill_manual(values= sample_color,aesthetics = "fill")
+
+ggplot(data=all_samples_data_feat, aes(x=condition, y=feature_number, fill=replicate)) +
+geom_bar(stat="identity", position=position_dodge())
+```
+
+
+
+
+```{r plot celltype percentage per replicates}
+clust_count<-table(unname(Idents(aly_combined.sct)),aly_combined.sct@meta.data$orig.ident)
+M<-sweep(as.matrix(clust_count),2,colSums(as.matrix(clust_count)),`/`)
+M<-M*100
+M<-melt(M)
+colnames(M)<-c("cluster","origin","percent")
+
+ggplot(data=M, aes(x=origin, y=percent, fill=cluster, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", position='stack')+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per replicate')+xlab("Sample") + ylab("Percentage")
+```
+
+
+
+```{r plot celltype percentage per replicates}
+samples=c(aly_combined.sct,dry2_70,alo_combined.sct,dro_combined.sct,aldr16_combined.sct,aldr202_09)
+samples_names=c("AL young", "DR young", "AL old", "DR old", "ALDR16", "ALDR20")
+M<-list()
+for ( i in 1:6){
+  clust_count<-table(unname(Idents(samples[i][[1]]),rep(samples_names[i],dim(samples[i][[1]])[2])))
+tab<-sweep(as.matrix(clust_count),2,colSums(as.matrix(clust_count)),`/`)
+colnames(tab)<-samples_names[i]
+M[[i]]<-tab*100
+
+}
+
+all<-melt(M)
+colnames(all)<-c("Celltype","Condition","percent")
+
+
+
+ggplot(data=all, aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", position='stack')+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+```
+
+```{r plot celltype percentage per replicates pie chart}
+pcaly<-ggplot(data=all[1:6,], aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", width = 1)+ coord_polar("y", start=0)+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+
+pcdry<-ggplot(data=all[7:11,], aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", width = 1)+ coord_polar("y", start=0)+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+
+pcalo<-ggplot(data=all[12:19,], aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", width = 1)+ coord_polar("y", start=0)+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+
+pcdro<-ggplot(data=all[20:24,], aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", width = 1)+ coord_polar("y", start=0)+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+
+pcal16<-ggplot(data=all[25:30,], aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", width = 1)+ coord_polar("y", start=0)+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+
+pcal20<-ggplot(data=all[31:36,], aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", width = 1)+ coord_polar("y", start=0)+geom_text(position = position_stack(vjust = .5))+scale_colour_manual(values=mypal,aesthetics = "fill")+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")
+
+plot_grid( pcaly,pcalo,pcdry,pcdro,pcal16,pcal20)
+
+```
+
+
+```{r}
+#Cell_types= c("Mature adipocyte","Pre-adipocyte 1 (Tshz2)", "Macrophage", "Precursor (Dao)", "Mature adipocyte (acaca)", "Endothelial cell", "Muscle cell", "Neutrophil", "Natural killer", "Pre-adipocyte 2 (adamtsl1)", "Lymphocyte","Undefined")
+
+mypal=c("#D04F55","#2194EC","#E8CA5D","#35A984","#D45E57","#7D6AC8","#3F826D","#CACF85","#E4A278","#7BB0A8","#8BA87C","#E28413","#ADC2C1")
+Colours=data.frame(Cell_types,mypal)
+
+test=unname(Idents(samples[i][[1]]))
+
+test =test %>%
+  str_replace_all(c("Macrophage" = "Immune cell", "Lymphocyte" = "Immune cell", "Pre-adipocyte 1 \\(Tshz2\\)" = "Precursor","Precursor \\(Dao\\)" = "Precursor","Mature adipocyte \\(acaca\\)" = "Mature adipocyte","Endothelial cell" = "Other","Neutrophil" = "Immune cell","Natural killer" = "Immune cell","Pre-adipocyte 2 \\(adamtsl1\\)" = "Pecursor",  "Undefined" = "Other" ))
+
+samples=c(aly_combined.sct,dry2_70,alo_combined.sct,dro_combined.sct,aldr16_combined.sct,aldr202_09)
+samples_names=c("AL young", "DR young", "AL old", "DR old", "ALDR16", "ALDR20")
+M2<-list()
+for ( i in 1:6){
+  test=unname(Idents(samples[i][[1]]))
+  test =test %>%
+  str_replace_all(c("Macrophage" = "Immune cell", "Lymphocyte" = "Immune cell", "Pre-adipocyte 1 \\(Tshz2\\)" = "Precursor","Precursor \\(Dao\\)" = "Precursor","Mature adipocyte \\(acaca\\)" = "Mature adipocyte","Endothelial cell" = "Other","Neutrophil" = "Immune cell","Natural killer" = "Immune cell","Pre-adipocyte 2 \\(adamtsl1\\)" = "Precursor",  "Undefined" = "Other" ))
+clust_count<-table(test,rep(samples_names[i],dim(samples[i][[1]])[2]))
+tab<-sweep(as.matrix(clust_count),2,colSums(as.matrix(clust_count)),`/`)
+colnames(tab)<-samples_names[i]
+M2[[i]]<-tab*100
+
+}
+
+all<-melt(M2)
+colnames(all)<-c("Celltype","Condition","percent")
+ 
+simple_mypal=c("#E8CA5D","#D04F55","#ADC2C1","#35A984")
+
+
+ggplot(data=all, aes(x=Condition, y=percent, fill=Celltype, label =paste(round(percent),"%"))) +
+geom_bar(stat="identity", position='stack')+geom_text(position = position_stack(vjust = .5))+ggtitle('Cell type proportion per condition')+xlab("Sample") + ylab("Percentage")+scale_fill_manual(values=simple_mypal)+theme_minimal()
+ 
+```
+
+
+```{r merging old,message=FALSE, warning=FALSE, echo = FALSE}
+all_old_data<-list(aldr162_08,aldr16_35,alo_71,alo2_06,dro_72,aldr202_09)
+all_old_features <- SelectIntegrationFeatures(object.list = all_old_data, nfeatures = 5000)
+all_old_list <- PrepSCTIntegration(object.list = all_old_data, anchor.features = all_old_features, 
+    verbose = FALSE)
+all_old_anchors <- FindIntegrationAnchors(object.list = all_old_list, normalization.method = "SCT", 
+    anchor.features = all_old_features)
+all_old_combined.sct <- IntegrateData(anchorset = all_old_anchors, normalization.method = "SCT")
+
+all_old_combined.sct <- RunPCA(all_old_combined.sct, verbose = FALSE)
+all_old_combined.sct <- RunUMAP(all_old_combined.sct, reduction = "pca", dims = 1:30)
+```
+
+```{r umap plot aldr16, echo = FALSE}
+p1<-DimPlot(all_old_combined.sct, reduction = "umap", group.by = "orig.ident")
+p1
+```
+
+```{r clustering aldr16, echo = FALSE}
+all_old_combined.sct <- FindNeighbors(all_old_combined.sct, reduction = "pca", dims = 1:30)
+all_old_combined.sct <- FindClusters(all_old_combined.sct, resolution = 0.6)
+p3 <- DimPlot(all_old_combined.sct, reduction = "umap")
+plot_grid( p1,p3)
+```
