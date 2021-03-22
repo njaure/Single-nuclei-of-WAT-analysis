@@ -1,0 +1,38 @@
+---
+title: "Test Monocle v3"
+author: "Nathalie"
+date: "3/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library('SeuratWrappers')
+library(Seurat)
+library(monocle3)
+library(Matrix)
+library(ggplot2)
+```
+
+
+
+```{r}
+aldr16_combined.sct.cds <- as.cell_data_set(aldr16_combined.sct)
+aldr16_combined.sct.cds<- cluster_cells(cds = aldr16_combined.sct.cds, reduction_method = "UMAP")
+aldr16_combined.sct.cds <- learn_graph(aldr16_combined.sct.cds, use_partition = TRUE)
+aldr16_combined.sct.cds <- order_cells(aldr16_combined.sct.cds, reduction_method = "UMAP")
+plot_cells(
+  cds = aldr16_combined.sct.cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE
+)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
